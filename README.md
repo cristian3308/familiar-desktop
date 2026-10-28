@@ -17,6 +17,17 @@ en un único binario Rust sin navegador embebido.
 > real desde este repositorio, así que conviene probarlo primero con
 > `hide_taskbar = false` (ver [Configuración](#configuración)).
 
+## Descargar e instalar (Windows 11)
+
+1. Descarga **[familiar-core.exe](https://github.com/cristian3308/familiar-desktop/raw/main/dist/familiar-core.exe)**
+   (carpeta [`dist/`](dist/)). No necesita instalar nada más: solo usa DLLs de Windows.
+2. Muévelo a una carpeta fija, por ejemplo `C:\Familiar\`, y ábrelo con doble clic.
+   Si SmartScreen avisa: **Más información → Ejecutar de todas formas** (el binario no está firmado).
+3. Para la primera prueba, ciérralo con **Ctrl+Alt+Q**, abre `%APPDATA%\FamiliarCore\config.toml`,
+   pon `hide_taskbar = false` y vuelve a abrirlo.
+4. Si algo falla: **Ctrl+Alt+Q** para salir, `familiar-core.exe --restore-taskbar` para recuperar la
+   barra de tareas, y el registro está en `%APPDATA%\FamiliarCore\familiar-core.log`.
+
 ## Arquitectura
 
 ```mermaid
