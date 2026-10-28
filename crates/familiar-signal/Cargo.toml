@@ -1,0 +1,9 @@
+[package]
+name = "familiar-signal"
+description = "Audio spectrum analysis and dot-matrix rasterisation for SIGNAL/01 and the visualizer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+rustfft = "6.4"

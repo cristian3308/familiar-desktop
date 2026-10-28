@@ -1,0 +1,24 @@
+[meta]
+name = "Mono Signal"
+author = "Familiar Core"
+
+[colors]
+background_tint = "#0A0A0AE6"
+accent = "#E8E8E8"
+text_primary = "#FFFFFF"
+text_secondary = "#8A8A8A"
+border_glow = "#FFFFFF10"
+island_background = "#000000FF"
+dot_off = "#FFFFFF0C"
+
+[metrics]
+dock_icon_size = 44
+dock_magnification = 1.0
+corner_radius = 10
+top_bar_height = 28
+blur_type = "None"
+
+[cursor]
+custom_scheme = false
+ripple_on_click = false
+shake_to_find = false

@@ -1,0 +1,8 @@
+[package]
+name = "familiar-layout"
+description = "Pure geometry for the shell: dock magnification, widget grid, cursor shake detection"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]

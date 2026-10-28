@@ -1,0 +1,202 @@
+import { Theme } from "theme.slint";
+
+component IconButton inherits Rectangle {
+    in property <string> glyph;
+    in property <length> size: 18px;
+    callback clicked();
+    width: 34px;
+    height: 34px;
+    border-radius: 17px;
+    background: touch.has-hover ? #ffffff1f : transparent;
+    animate background { duration: 120ms; }
+    Text {
+        text: root.glyph;
+        font-family: Theme.icons;
+        font-size: root.size;
+        color: white;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+export component IslandWindow inherits Window {
+    title: "Familiar Island";
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+    default-font-family: Theme.font;
+
+    in property <bool> expanded;
+    in property <bool> has-media;
+    in property <bool> playing;
+    in property <string> track;
+    in property <string> artist;
+    in property <image> artwork;
+    in property <bool> has-artwork;
+    in property <image> spectrum;
+    in property <bool> mic;
+    in property <bool> cam;
+    in property <length> collapsed-width: 200px;
+    in property <length> collapsed-height: 28px;
+    in property <length> expanded-width: 380px;
+    in property <length> expanded-height: 148px;
+
+    callback hover-changed(bool);
+    callback play-pause();
+    callback next();
+    callback previous();
+    callback open-source();
+
+    pill := Rectangle {
+        width: root.expanded ? root.expanded-width : root.collapsed-width;
+        height: root.expanded ? root.expanded-height : root.collapsed-height;
+        x: (root.width - self.width) / 2;
+        y: 0;
+        border-radius: root.expanded ? 30px : self.height / 2;
+        background: Theme.island;
+        clip: true;
+        animate width, height, border-radius {
+            duration: 340ms;
+            easing: cubic-bezier(0.22, 1.12, 0.36, 1);
+        }
+
+        // Wraps the content: children (the transport buttons) get clicks
+        // first, while this keeps reporting hover for the whole pill.
+        hover := TouchArea {
+            changed has-hover => {
+                root.hover-changed(self.has-hover);
+            }
+
+            // Collapsed: artwork chip on the left, live bars on the right.
+            HorizontalLayout {
+                opacity: root.expanded ? 0 : 1;
+                animate opacity { duration: 140ms; }
+                padding-left: 6px;
+                padding-right: 10px;
+                alignment: space-between;
+                if root.has-media: Rectangle {
+                    width: root.collapsed-height - 8px;
+                    height: root.collapsed-height - 8px;
+                    y: 4px;
+                    border-radius: 5px;
+                    clip: true;
+                    background: #ffffff1a;
+                    if root.has-artwork: Image {
+                        width: parent.width;
+                        height: parent.height;
+                        source: root.artwork;
+                        image-fit: cover;
+                    }
+                }
+                if root.mic || root.cam: Rectangle {
+                    width: 7px;
+                    height: 7px;
+                    y: (root.collapsed-height - 7px) / 2;
+                    border-radius: 3.5px;
+                    background: root.cam ? #30d158 : #ff9f0a;
+                }
+                if root.has-media: Image {
+                    width: 44px;
+                    height: root.collapsed-height - 12px;
+                    y: 6px;
+                    source: root.spectrum;
+                    image-fit: fill;
+                    colorize: Theme.accent;
+                }
+            }
+
+            // Expanded: now playing card.
+            VerticalLayout {
+                opacity: root.expanded ? 1 : 0;
+                animate opacity { duration: 220ms; delay: 90ms; }
+                padding: 16px;
+                padding-top: 14px;
+                spacing: 10px;
+                HorizontalLayout {
+                    spacing: 12px;
+                    Rectangle {
+                        width: 56px;
+                        height: 56px;
+                        border-radius: 12px;
+                        clip: true;
+                        background: #ffffff1a;
+                        if root.has-artwork: Image {
+                            width: parent.width;
+                            height: parent.height;
+                            source: root.artwork;
+                            image-fit: cover;
+                        }
+                        if !root.has-artwork: Text {
+                            text: "\u{E8D6}";
+                            font-family: Theme.icons;
+                            font-size: 22px;
+                            color: #ffffff80;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                root.open-source();
+                            }
+                        }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        spacing: 2px;
+                        Text {
+                            text: root.has-media ? root.track : "Nada reproduciéndose";
+                            color: white;
+                            font-size: 14px;
+                            font-weight: 600;
+                            overflow: elide;
+                        }
+                        Text {
+                            text: root.artist;
+                            color: #ffffffa0;
+                            font-size: 12px;
+                            overflow: elide;
+                        }
+                    }
+                    Image {
+                        width: 56px;
+                        height: 28px;
+                        y: 14px;
+                        source: root.spectrum;
+                        image-fit: fill;
+                        colorize: Theme.accent;
+                    }
+                }
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: 18px;
+                    IconButton {
+                        glyph: "\u{E892}";
+                        clicked => {
+                            root.previous();
+                        }
+                    }
+                    IconButton {
+                        glyph: root.playing ? "\u{E769}" : "\u{E768}";
+                        size: 22px;
+                        clicked => {
+                            root.play-pause();
+                        }
+                    }
+                    IconButton {
+                        glyph: "\u{E893}";
+                        clicked => {
+                            root.next();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

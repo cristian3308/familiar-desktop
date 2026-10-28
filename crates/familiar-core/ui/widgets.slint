@@ -1,0 +1,64 @@
+import { Theme } from "theme.slint";
+
+export component WidgetWindow inherits Window {
+    title: "Familiar Widget";
+    no-frame: true;
+    background: transparent;
+    default-font-family: Theme.font;
+
+    in property <string> caption;
+    in property <string> subcaption;
+    // Dot-matrix frame rendered in Rust (one texture upload per frame).
+    in property <image> matrix;
+
+    callback drag-moved(length, length);
+    callback drag-ended();
+
+    Rectangle {
+        background: Theme.tint;
+        border-radius: Theme.radius;
+        border-width: 1px;
+        border-color: Theme.glow;
+
+        VerticalLayout {
+            padding: 14px;
+            spacing: 8px;
+            HorizontalLayout {
+                Text {
+                    text: root.caption;
+                    color: Theme.text-secondary;
+                    font-size: 10px;
+                    font-weight: 700;
+                    letter-spacing: 1.6px;
+                }
+                Rectangle {
+                    horizontal-stretch: 1;
+                }
+                Text {
+                    text: root.subcaption;
+                    color: Theme.accent;
+                    font-size: 10px;
+                    font-weight: 700;
+                    letter-spacing: 1.2px;
+                }
+            }
+            Image {
+                source: root.matrix;
+                image-fit: contain;
+                vertical-stretch: 1;
+            }
+        }
+    }
+
+    TouchArea {
+        mouse-cursor: self.pressed ? MouseCursor.grabbing : MouseCursor.default;
+        moved => {
+            root.drag-moved(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y);
+        }
+        pointer-event(ev) => {
+            if ev.kind == PointerEventKind.up && ev.button == PointerEventButton.left {
+                root.drag-ended();
+            }
+        }
+    }
+}

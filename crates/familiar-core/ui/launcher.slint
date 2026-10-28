@@ -1,0 +1,149 @@
+import { Theme } from "theme.slint";
+
+export struct LauncherItem {
+    icon: image,
+    name: string,
+    detail: string,
+}
+
+export component LauncherWindow inherits Window {
+    title: "Familiar Launcher";
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+    default-font-family: Theme.font;
+
+    in property <[LauncherItem]> items;
+    in-out property <int> selected;
+    in-out property <string> query;
+
+    callback query-changed(string);
+    callback activate(int);
+    callback dismiss();
+
+    public function focus-search() {
+        search.focus();
+        search.select-all();
+    }
+
+    keys := FocusScope {
+        capture-key-pressed(event) => {
+            if event.text == Key.Escape {
+                root.dismiss();
+                return accept;
+            }
+            if event.text == Key.DownArrow {
+                root.selected = min(root.items.length - 1, root.selected + 1);
+                return accept;
+            }
+            if event.text == Key.UpArrow {
+                root.selected = max(0, root.selected - 1);
+                return accept;
+            }
+            if event.text == Key.Return {
+                root.activate(root.selected);
+                return accept;
+            }
+            reject
+        }
+
+        Rectangle {
+            background: Theme.tint;
+            border-radius: Theme.radius;
+            border-width: 1px;
+            border-color: Theme.glow;
+
+            VerticalLayout {
+                padding: 18px;
+                spacing: 10px;
+                alignment: start;
+
+                HorizontalLayout {
+                    spacing: 12px;
+                    height: 36px;
+                    Text {
+                        text: "\u{E721}";
+                        font-family: Theme.icons;
+                        font-size: 18px;
+                        color: Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+                    Rectangle {
+                        search := TextInput {
+                            text <=> root.query;
+                            font-size: 20px;
+                            color: Theme.text;
+                            vertical-alignment: center;
+                            single-line: true;
+                            edited => {
+                                root.query-changed(self.text);
+                            }
+                        }
+                        if root.query == "": Text {
+                            text: "Buscar apps";
+                            font-size: 20px;
+                            color: Theme.text-secondary;
+                            vertical-alignment: center;
+                            x: 0;
+                        }
+                    }
+                }
+                Rectangle {
+                    height: 1px;
+                    background: Theme.glow;
+                }
+
+                for item[i] in root.items: Rectangle {
+                    height: 46px;
+                    border-radius: 10px;
+                    background: i == root.selected ? Theme.accent.with-alpha(0.22) : transparent;
+                    HorizontalLayout {
+                        padding-left: 10px;
+                        padding-right: 10px;
+                        spacing: 12px;
+                        Image {
+                            width: 30px;
+                            height: 30px;
+                            y: 8px;
+                            source: item.icon;
+                            image-fit: contain;
+                        }
+                        VerticalLayout {
+                            alignment: center;
+                            Text {
+                                text: item.name;
+                                color: Theme.text;
+                                font-size: 14px;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: item.detail;
+                                color: Theme.text-secondary;
+                                font-size: 11px;
+                                overflow: elide;
+                            }
+                        }
+                    }
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        changed has-hover => {
+                            if self.has-hover {
+                                root.selected = i;
+                            }
+                        }
+                        clicked => {
+                            root.activate(i);
+                        }
+                    }
+                }
+
+                if root.items.length == 0 && root.query != "": Text {
+                    text: "Sin resultados";
+                    color: Theme.text-secondary;
+                    font-size: 13px;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+    }
+}

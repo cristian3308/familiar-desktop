@@ -1,0 +1,35 @@
+import { Theme } from "theme.slint";
+
+// Click ripple / shake-to-find halo. The window is click-through.
+export component FxWindow inherits Window {
+    title: "Familiar Cursor FX";
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+
+    in property <bool> active;
+    in property <bool> halo;
+
+    property <length> full: min(root.width, root.height);
+
+    Rectangle {
+        property <length> d: root.active ? root.full : root.full * 0.2;
+        width: self.d;
+        height: self.d;
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2;
+        border-radius: self.width / 2;
+        border-width: root.halo ? 4px : 2px;
+        border-color: Theme.accent;
+        background: root.halo ? Theme.accent.with-alpha(0.18) : transparent;
+        opacity: root.active ? 0 : 0.9;
+        animate width, height {
+            duration: root.halo ? 600ms : 380ms;
+            easing: ease-out;
+        }
+        animate opacity {
+            duration: root.halo ? 600ms : 380ms;
+            easing: ease-in;
+        }
+    }
+}

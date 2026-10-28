@@ -1,0 +1,24 @@
+[meta]
+name = "Glacier Light"
+author = "Familiar Core"
+
+[colors]
+background_tint = "#F4F6FAB8"
+accent = "#2F7BFF"
+text_primary = "#1C1C1E"
+text_secondary = "#6E6E73"
+border_glow = "#00000018"
+island_background = "#000000F2"
+dot_off = "#00000012"
+
+[metrics]
+dock_icon_size = 52
+dock_magnification = 1.6
+corner_radius = 22
+top_bar_height = 30
+blur_type = "Mica"
+
+[cursor]
+custom_scheme = false
+ripple_on_click = true
+shake_to_find = true

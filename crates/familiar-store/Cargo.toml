@@ -1,0 +1,10 @@
+[package]
+name = "familiar-store"
+description = "SQLite state: dock items, widget layouts and the launcher app index"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+rusqlite = { version = "0.39", features = ["bundled"] }
+log.workspace = true
