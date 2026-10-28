@@ -1,0 +1,126 @@
+import { Theme } from "theme.slint";
+
+export struct DockIcon {
+    icon: image,
+    name: string,
+    running: bool,
+    active: bool,
+    separator: bool,
+    // Geometry is computed in Rust (familiar-layout) on every pointer move.
+    x: length,
+    size: length,
+}
+
+export component DockWindow inherits Window {
+    title: "Familiar Dock";
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+    default-font-family: Theme.font;
+
+    in property <[DockIcon]> icons;
+    in property <length> plate-x;
+    in property <length> plate-width;
+    in property <length> plate-height: 64px;
+    in property <length> bottom-margin: 6px;
+    in property <length> icon-padding: 8px;
+    in property <int> hovered: -1;
+
+    callback pointer-moved(length);
+    callback hover-changed(bool);
+    callback clicked(length);
+    callback right-clicked(length);
+    callback middle-clicked(length);
+
+    property <length> plate-y: root.height - root.bottom-margin - root.plate-height;
+    property <length> icons-bottom: root.plate-y + root.plate-height - root.icon-padding;
+    property <bool> tip-valid: root.hovered >= 0 && root.hovered < root.icons.length && !root.icons[root.hovered].separator;
+
+    // Measured here so Rust can include the tooltip in the window region.
+    tip-measure := Text {
+        text: root.icons[max(0, root.hovered)].name;
+        font-size: 12px;
+        visible: false;
+    }
+    out property <length> tip-width: tip-measure.preferred-width + 20px;
+    out property <length> tip-height: 24px;
+
+    Rectangle {
+        x: root.plate-x;
+        y: root.plate-y;
+        width: root.plate-width;
+        height: root.plate-height;
+        background: Theme.tint;
+        border-radius: Theme.radius;
+        border-width: 1px;
+        border-color: Theme.glow;
+    }
+
+    for item in root.icons: Rectangle {
+        x: item.x;
+        y: root.icons-bottom - item.size;
+        width: item.size;
+        height: item.size;
+
+        if item.separator: Rectangle {
+            x: (parent.width - 1px) / 2;
+            y: parent.height * 0.15;
+            width: 1px;
+            height: parent.height * 0.7;
+            background: Theme.glow;
+        }
+        if !item.separator: Image {
+            width: parent.width;
+            height: parent.height;
+            source: item.icon;
+            image-fit: contain;
+        }
+        if item.running && !item.separator: Rectangle {
+            x: (parent.width - 4px) / 2;
+            y: parent.height + 2px;
+            width: 4px;
+            height: 4px;
+            border-radius: 2px;
+            background: item.active ? Theme.accent : Theme.text;
+        }
+    }
+
+    if root.tip-valid: Rectangle {
+        property <DockIcon> item: root.icons[root.hovered];
+        width: root.tip-width;
+        height: root.tip-height;
+        x: max(2px, min(root.width - self.width - 2px, item.x + item.size / 2 - self.width / 2));
+        y: max(0px, root.icons-bottom - item.size - self.height - 6px);
+        border-radius: 7px;
+        background: Theme.tint;
+        border-width: 1px;
+        border-color: Theme.glow;
+        label := Text {
+            text: item.name;
+            color: Theme.text;
+            font-size: 12px;
+            vertical-alignment: center;
+            horizontal-alignment: center;
+        }
+    }
+
+    TouchArea {
+        changed mouse-x => {
+            root.pointer-moved(self.mouse-x);
+        }
+        changed has-hover => {
+            root.hover-changed(self.has-hover);
+        }
+        clicked => {
+            root.clicked(self.mouse-x);
+        }
+        pointer-event(ev) => {
+            if ev.kind == PointerEventKind.down && ev.button == PointerEventButton.right {
+                root.right-clicked(self.mouse-x);
+            }
+            if ev.kind == PointerEventKind.down && ev.button == PointerEventButton.middle {
+                root.middle-clicked(self.mouse-x);
+            }
+        }
+    }
+}

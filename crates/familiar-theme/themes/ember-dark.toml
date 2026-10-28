@@ -1,0 +1,24 @@
+[meta]
+name = "Ember Dark"
+author = "Familiar Core"
+
+[colors]
+background_tint = "#121214CC"
+accent = "#FF6B4A"
+text_primary = "#F5F5F7"
+text_secondary = "#A1A1A6"
+border_glow = "#FFFFFF22"
+island_background = "#000000F2"
+dot_off = "#FFFFFF14"
+
+[metrics]
+dock_icon_size = 48
+dock_magnification = 1.45
+corner_radius = 18
+top_bar_height = 32
+blur_type = "Acrylic"
+
+[cursor]
+custom_scheme = false
+ripple_on_click = true
+shake_to_find = true

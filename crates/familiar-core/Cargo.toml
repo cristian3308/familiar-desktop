@@ -1,0 +1,47 @@
+[package]
+name = "familiar-core"
+description = "A lightweight native clone of Familiar Desktop: dock, top bar, Dynamic Island, widgets and launcher"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+build = "build.rs"
+
+[[bin]]
+name = "familiar-core"
+path = "src/main.rs"
+
+[features]
+default = ["renderer-femtovg"]
+# OpenGL vector renderer: smallest footprint with per-pixel transparency.
+renderer-femtovg = ["slint/renderer-femtovg"]
+# Same renderer on top of WGPU (D3D12/Vulkan).
+renderer-wgpu = ["slint/renderer-femtovg-wgpu"]
+# Skia (Direct3D/OpenGL); best text quality, larger binary.
+renderer-skia = ["slint/renderer-skia"]
+
+[dependencies]
+familiar-theme.workspace = true
+serde.workspace = true
+toml.workspace = true
+log.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+familiar-layout.workspace = true
+familiar-signal.workspace = true
+familiar-store.workspace = true
+familiar-sys.workspace = true
+raw-window-handle = "0.6"
+slint = { version = "~1.18", default-features = false, features = [
+    "std",
+    "compat-1-2",
+    "backend-winit",
+    "raw-window-handle-06",
+    "unstable-winit-030",
+] }
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[build-dependencies]
+slint-build = "~1.18"

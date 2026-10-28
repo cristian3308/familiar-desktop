@@ -1,0 +1,29 @@
+[workspace]
+resolver = "3"
+members = ["crates/familiar-layout", "crates/familiar-signal", "crates/familiar-theme", "crates/familiar-store", "crates/familiar-sys", "crates/familiar-core"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+repository = "https://github.com/cristian3308/familiar-desktop"
+
+[workspace.dependencies]
+familiar-layout = { path = "crates/familiar-layout" }
+familiar-signal = { path = "crates/familiar-signal" }
+familiar-theme = { path = "crates/familiar-theme" }
+familiar-store = { path = "crates/familiar-store" }
+familiar-sys = { path = "crates/familiar-sys" }
+serde = { version = "1", features = ["derive"] }
+toml = "1"
+log = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "unwind"   # the panic hook must run to restore the Windows taskbar
+strip = true
+
+[profile.dev.package."*"]
+opt-level = 2
