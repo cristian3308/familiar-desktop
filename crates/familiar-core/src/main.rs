@@ -22,6 +22,8 @@ mod indexer;
 mod island;
 #[cfg(windows)]
 mod launcher;
+#[cfg(all(windows, not(feature = "winit")))]
+mod platform;
 #[cfg(windows)]
 mod topbar;
 #[cfg(windows)]

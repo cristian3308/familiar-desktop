@@ -1,6 +1,8 @@
 import { Theme } from "theme.slint";
 
 component BarText inherits Text {
+    // Only the spacer may grow; everything else keeps its natural width.
+    horizontal-stretch: 0;
     color: Theme.text;
     font-size: 13px;
     vertical-alignment: center;
@@ -81,6 +83,7 @@ export component TopBarWindow inherits Window {
         // Brand mark: a small diamond.
         Rectangle {
             width: 14px;
+            horizontal-stretch: 0;
             Path {
                 width: 12px;
                 height: 12px;
@@ -111,6 +114,7 @@ export component TopBarWindow inherits Window {
         }
 
         if root.mic || root.cam: HorizontalLayout {
+            horizontal-stretch: 0;
             spacing: 5px;
             alignment: center;
             if root.cam: Rectangle {
@@ -145,6 +149,7 @@ export component TopBarWindow inherits Window {
             }
         }
         if root.battery >= 0: HorizontalLayout {
+            horizontal-stretch: 0;
             spacing: 6px;
             BarText {
                 text: root.battery + "%";
@@ -163,6 +168,7 @@ export component TopBarWindow inherits Window {
             }
         }
         HorizontalLayout {
+            horizontal-stretch: 0;
             spacing: 8px;
             BarText {
                 text: root.date;

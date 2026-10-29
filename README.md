@@ -7,15 +7,16 @@ en un único binario Rust sin navegador embebido.
 
 | Objetivo | Cómo se aborda |
 |---|---|
-| < 25 MB de RAM | Sin WebView2/Chromium: UI compilada con Slint (femtovg/OpenGL), un solo proceso, estado en SQLite con caché de 256 KiB. |
+| < 25 MB de RAM | Sin WebView2/Chromium ni OpenGL: UI compilada con Slint y dibujada por CPU en ventanas Win32 *layered* (`UpdateLayeredWindow`), un solo proceso, estado en SQLite con caché de 256 KiB. |
 | 0 % de CPU en reposo | Todos los vigilantes bloquean en el kernel (`GetMessageW`, `WaitForMultipleObjects`, `RegNotifyChangeKeyValue`, `ReadDirectoryChangesW`). Los únicos temporizadores periódicos son el reloj (1 vez por minuto) y las animaciones, que se detienen solas. |
 | $0, 100 % local | Ningún servicio de red. |
 
-> **Estado:** el workspace compila y enlaza para `x86_64-pc-windows-gnu` y pasa
-> `clippy` y 40 tests de los crates portables. La CI compila también con MSVC
-> en `windows-latest`. Todavía no se ha ejecutado sobre un escritorio Windows
-> real desde este repositorio, así que conviene probarlo primero con
-> `hide_taskbar = false` (ver [Configuración](#configuración)).
+> **Estado y memoria medida:**
+>
+> - **Primera prueba real (Windows 11, versión con OpenGL):** funcionó, pero usaba **241 MB**, porque cada ventana tenía su propio contexto OpenGL en el driver de NVIDIA.
+> - **Versión actual:** dibuja por CPU. Bajo Wine ocupa **~21 MB** de memoria privada estable (de ellos ~7 MB son la base del propio Wine) y su CPU en reposo es ~0.
+> - **Pendiente:** confirmar la cifra en Windows real con el Administrador de tareas.
+> - Conviene probarlo primero con `hide_taskbar = false` (ver [Configuración](#configuración)).
 
 ## Descargar e instalar (Windows 11)
 
@@ -32,7 +33,7 @@ en un único binario Rust sin navegador embebido.
 
 ```mermaid
 graph TD
-    subgraph UI ["Superficies (Slint → OpenGL, una ventana nativa por superficie)"]
+    subgraph UI ["Superficies (Slint software renderer → ventanas layered, una por superficie)"]
         W1["Top Bar (AppBar arriba)"]
         W1b["Dynamic Island"]
         W2["Dock (AppBar abajo, región recortada)"]
@@ -78,9 +79,8 @@ graph TD
 - **Dock**: los anclados vienen de SQLite y se emparejan con las ventanas abiertas
   por AppUserModelID o ruta del `.exe`. En reposo la ventana mide lo que la
   placa y esa franja se reserva como AppBar inferior; al pasar el ratón crece
-  hacia arriba. La ventana se recorta con `SetWindowRgn` a placa + iconos +
-  tooltip, de modo que el Acrylic toma esa forma y los clics fuera del Dock
-  llegan a las ventanas de debajo.
+  hacia arriba. Como la ventana es *layered* con alfa por píxel, los clics en
+  las zonas transparentes llegan a las ventanas de debajo.
   - Clic: abre o minimiza la app, o recorre sus ventanas si tiene varias. Clic
     central: abre una instancia nueva. Clic derecho: ancla o desancla.
 - **Puntos de privacidad**: `RegNotifyChangeKeyValue` sobre
@@ -146,13 +146,23 @@ cargo build --release -p familiar-core --target x86_64-pc-windows-gnu
 
 Los tests de los crates portables corren en cualquier SO con `cargo test --workspace`.
 
-El renderizador se elige con features:
+Por defecto se usa la plataforma propia (`crates/familiar-core/src/platform.rs`):
 
-| Feature | Renderizador |
-|---|---|
-| `renderer-femtovg` (por defecto) | OpenGL, el de menor huella. |
-| `renderer-wgpu` | femtovg sobre WGPU (D3D12/Vulkan). |
-| `renderer-skia` | Skia; mejor texto, binario más grande. |
+- Slint dibuja por CPU en un DIB premultiplicado, y solo cuando algo cambia.
+- `UpdateLayeredWindow` entrega esos píxeles a DWM.
+- El bucle de eventos duerme en `MsgWaitForMultipleObjects`.
+
+Con `--features winit` se compila la alternativa con winit + OpenGL. Esa versión
+aplica Mica/Acrylic de DWM, pero cuesta unos 40 MB de driver por superficie:
+
+| Build | Memoria | Desenfoque Mica/Acrylic |
+|---|---|---|
+| por defecto (software + layered) | ~20 MB | no (tinte translúcido) |
+| `--features winit` | ~240 MB | sí |
+
+Si la UI no muestra texto porque faltan las fuentes Segoe, usa
+`FAMILIAR_FONT_FILE=C:\ruta\fuente.ttf` para registrar otra fuente y
+`FAMILIAR_FONT="Nombre de familia"` para usarla.
 
 Para medir el consumo: abre el Administrador de tareas → Detalles → columna
 "Memoria (conjunto de trabajo privado)". Para ver el detalle por hilo usa

@@ -26,11 +26,29 @@ pub fn image_from_rgba(width: u32, height: u32, rgba: &[u8]) -> Image {
     Image::from_rgba8(buf)
 }
 
+/// Largest edge an icon is ever drawn at (dock icon × magnification × DPI);
+/// decoding the 256 px cache files at this size keeps ~4× less in memory.
+const ICON_EDGE: u32 = 128;
+
+thread_local! {
+    static ICONS: std::cell::RefCell<std::collections::HashMap<std::path::PathBuf, Image>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+/// Loads (and memoises) a cached PNG icon. Decoding is done here rather than
+/// by Slint so the software renderer needs no image-decoder features.
 pub fn load_icon(path: &std::path::Path) -> Image {
-    if path.as_os_str().is_empty() || !path.exists() {
+    if path.as_os_str().is_empty() {
         return Image::default();
     }
-    Image::load_from_path(path).unwrap_or_default()
+    if let Some(img) = ICONS.with(|c| c.borrow().get(path).cloned()) {
+        return img;
+    }
+    let Ok(decoded) = image::open(path) else { return Image::default() };
+    let rgba = decoded.thumbnail(ICON_EDGE, ICON_EDGE).to_rgba8();
+    let img = image_from_rgba(rgba.width(), rgba.height(), rgba.as_raw());
+    ICONS.with(|c| c.borrow_mut().insert(path.to_path_buf(), img.clone()));
+    img
 }
 
 /// Pushes theme values into a component's `Theme` global (every component
@@ -49,6 +67,11 @@ where
     g.set_island(color(t.colors.island_background));
     g.set_radius(t.metrics.corner_radius as f32);
     g.set_bar_height(t.metrics.top_bar_height as f32);
+    // Troubleshooting override for machines without Segoe UI (e.g. Wine).
+    if let Ok(font) = std::env::var("FAMILIAR_FONT") {
+        g.set_font(font.as_str().into());
+        g.set_icons(font.as_str().into());
+    }
 }
 
 /// `0xAABBGGRR` tint for the Windows 10 acrylic fallback.
@@ -92,5 +115,9 @@ pub fn apply_material(hwnd: Hwnd, t: &ThemeSpec, rounded: bool) {
     dwm::hide_border(h);
     dwm::set_rounded(h, rounded);
     dwm::set_dark_mode(h, t.colors.background_tint.luminance() < 0.5);
-    dwm::set_backdrop(h, t.metrics.blur_type, abgr(t.colors.background_tint));
+    // Layered (software-rendered) windows composite their own alpha; DWM
+    // backdrops only apply to regular windows (the `winit` build).
+    if !familiar_sys::window::is_layered(h) {
+        dwm::set_backdrop(h, t.metrics.blur_type, abgr(t.colors.background_tint));
+    }
 }
