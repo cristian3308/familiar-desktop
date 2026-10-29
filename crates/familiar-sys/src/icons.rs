@@ -88,9 +88,9 @@ unsafe fn bitmap_to_rgba(bmp: HBITMAP) -> windows::core::Result<IconImage> {
     }
     // BGRA -> RGBA. The shell hands out premultiplied alpha; undo it so the
     // PNG (and the UI toolkit) see straight alpha.
-    let premultiplied = px.chunks_exact(4).all(|p| p[0] <= p[3] && p[1] <= p[3] && p[2] <= p[3]);
-    let has_alpha = px.chunks_exact(4).any(|p| p[3] != 0);
-    for p in px.chunks_exact_mut(4) {
+    let premultiplied = px.as_chunks::<4>().0.iter().all(|p| p[0] <= p[3] && p[1] <= p[3] && p[2] <= p[3]);
+    let has_alpha = px.as_chunks::<4>().0.iter().any(|p| p[3] != 0);
+    for p in px.as_chunks_mut::<4>().0 {
         p.swap(0, 2);
         if !has_alpha {
             p[3] = 255;
