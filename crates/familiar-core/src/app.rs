@@ -793,6 +793,28 @@ fn run_cli(args: &[String], paths: &Paths) -> Option<i32> {
     }
 }
 
+/// `FAMILIAR_FONT_FILE=C:\path\font.ttf` registers an extra font, for
+/// systems where the Segoe families are missing (with `FAMILIAR_FONT` set
+/// to its family name).
+fn register_extra_font() {
+    let Some(path) = std::env::var_os("FAMILIAR_FONT_FILE") else { return };
+    match std::fs::read(&path) {
+        Ok(bytes) => {
+            let mut fonts = slint::fontique_011::shared_collection();
+            let families = fonts.register_fonts(bytes.into(), None);
+            log::info!("registered {} font families from {}", families.len(), Path::new(&path).display());
+        }
+        Err(e) => log::warn!("FAMILIAR_FONT_FILE: {e}"),
+    }
+}
+
+#[cfg(not(feature = "winit"))]
+fn select_backend() -> Result<(), slint::PlatformError> {
+    let platform = crate::platform::LayeredPlatform::new()?;
+    slint::platform::set_platform(Box::new(platform)).map_err(|e| slint::PlatformError::Other(e.to_string()))
+}
+
+#[cfg(feature = "winit")]
 fn select_backend() -> Result<(), slint::PlatformError> {
     use slint::winit_030::winit::platform::windows::WindowAttributesExtWindows;
     slint::BackendSelector::new()
@@ -849,6 +871,7 @@ pub fn main() -> i32 {
         log::error!("UI backend: {e}");
         return 1;
     }
+    register_extra_font();
     let app = match App::new(cfg, paths, store, theme, theme_path) {
         Ok(a) => Rc::new(a),
         Err(e) => {

@@ -38,6 +38,7 @@ pub fn apply_surface(hwnd: HWND, opts: SurfaceOptions) {
         if opts.no_activate {
             ex |= WS_EX_NOACTIVATE.0;
         }
+        let was_layered = ex & WS_EX_LAYERED.0 != 0;
         if opts.click_through {
             ex |= WS_EX_TRANSPARENT.0 | WS_EX_LAYERED.0;
         } else {
@@ -47,7 +48,9 @@ pub fn apply_surface(hwnd: HWND, opts: SurfaceOptions) {
             ex &= !WS_EX_TOPMOST.0;
         }
         SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex as isize);
-        if opts.click_through {
+        // Only for windows we just made layered: calling this on a window
+        // that draws with UpdateLayeredWindow would break its rendering.
+        if opts.click_through && !was_layered {
             let _ = SetLayeredWindowAttributes(hwnd, Default::default(), 255, LWA_ALPHA);
         }
         let after = if opts.topmost { HWND_TOPMOST } else { HWND_NOTOPMOST };
@@ -80,6 +83,11 @@ pub struct RegionPart {
 /// Clips the window (painting, DWM backdrop *and* hit-testing) to the union
 /// of `parts`. Clicks outside fall through to whatever is below.
 pub fn set_region(hwnd: HWND, parts: &[RegionPart]) {
+    // Per-pixel-alpha windows already hit-test by alpha; a region would
+    // only fight with UpdateLayeredWindow.
+    if is_layered(hwnd) {
+        return;
+    }
     unsafe {
         let mut combined: Option<HRGN> = None;
         for p in parts.iter().filter(|p| p.rect.w > 0 && p.rect.h > 0) {
@@ -112,6 +120,10 @@ pub fn raise_topmost(hwnd: HWND) {
     unsafe {
         let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
+}
+
+pub fn is_layered(hwnd: HWND) -> bool {
+    unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32 & WS_EX_LAYERED.0 != 0 }
 }
 
 /// Re-asserts the top of the z-order for windows that are topmost.
