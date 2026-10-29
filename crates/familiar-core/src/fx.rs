@@ -48,7 +48,7 @@ impl CursorFx {
                 self.hwnd.set(Some(h));
             }
             Some(h) => {
-                window::set_bounds(h.get(), rect);
+                ui::set_bounds(self.ui.window(), rect);
                 window::show_no_activate(h.get(), true);
                 window::raise_topmost(h.get());
             }

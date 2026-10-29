@@ -56,6 +56,14 @@ pub fn abgr(c: ThemeColor) -> u32 {
     (u32::from(c.a) << 24) | c.to_colorref()
 }
 
+/// Moves/resizes a top-level surface through Slint, so the renderer and the
+/// layout pick up the new size. (A raw `SetWindowPos` moved the native window
+/// but left Slint drawing at the old size, which clipped the dock.)
+pub fn set_bounds(window: &slint::Window, r: familiar_sys::window::Rect) {
+    window.set_position(slint::PhysicalPosition::new(r.x, r.y));
+    window.set_size(slint::PhysicalSize::new(r.w.max(1) as u32, r.h.max(1) as u32));
+}
+
 /// Shows/hides a shell surface without activating it (Slint's own `show()`
 /// uses `SW_SHOW`, which would steal focus when leaving calm mode).
 pub fn set_native_visible(hwnd: Option<Hwnd>, visible: bool) {

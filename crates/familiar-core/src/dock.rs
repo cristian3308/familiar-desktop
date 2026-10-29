@@ -190,8 +190,8 @@ impl Dock {
         self.ui.set_plate_height(Self::plate_height(&m));
         self.ui.set_bottom_margin(BOTTOM_MARGIN);
         self.ui.set_icon_padding(PADDING);
-        if let Some(hwnd) = self.hwnd.get() {
-            window::set_bounds(hwnd.get(), self.window_rect(app, self.grown.get()));
+        if self.hwnd.get().is_some() {
+            ui::set_bounds(self.ui.window(), self.window_rect(app, self.grown.get()));
         }
         self.layout_icons(app);
     }
@@ -270,11 +270,8 @@ impl Dock {
 
     fn on_hover(&self, app: &App, hovered: bool) {
         self.target.set(if hovered { 1.0 } else { 0.0 });
-        if hovered
-            && !self.grown.replace(true)
-            && let Some(h) = self.hwnd.get()
-        {
-            window::set_bounds(h.get(), self.window_rect(app, true));
+        if hovered && !self.grown.replace(true) && self.hwnd.get().is_some() {
+            ui::set_bounds(self.ui.window(), self.window_rect(app, true));
             self.layout_icons(app);
         }
         // On leave the last pointer position is kept so the icons shrink
@@ -297,10 +294,8 @@ impl Dock {
             self.anim.stop();
             if s == 0.0 {
                 self.pointer.set(None);
-                if self.grown.replace(false)
-                    && let Some(h) = self.hwnd.get()
-                {
-                    window::set_bounds(h.get(), self.window_rect(app, false));
+                if self.grown.replace(false) && self.hwnd.get().is_some() {
+                    ui::set_bounds(self.ui.window(), self.window_rect(app, false));
                 }
                 self.layout_icons(app);
             }
