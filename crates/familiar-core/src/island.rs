@@ -94,11 +94,13 @@ impl Island {
     }
 
     fn on_hover(&self, app: &App, hovered: bool) {
-        let Some(hwnd) = self.hwnd.get() else { return };
+        if self.hwnd.get().is_none() {
+            return;
+        }
         if hovered {
             self.shrink.stop();
             if !self.expanded.replace(true) {
-                window::set_bounds(hwnd.get(), self.rect(app, true));
+                ui::set_bounds(self.ui.window(), self.rect(app, true));
             }
             self.ui.set_expanded(true);
         } else {
@@ -118,15 +120,15 @@ impl Island {
             return;
         }
         self.expanded.set(false);
-        if let Some(hwnd) = self.hwnd.get() {
-            window::set_bounds(hwnd.get(), self.rect(app, false));
+        if self.hwnd.get().is_some() {
+            ui::set_bounds(self.ui.window(), self.rect(app, false));
         }
     }
 
     pub fn relayout(&self, app: &App) {
         self.sync_sizes(app);
-        if let Some(hwnd) = self.hwnd.get() {
-            window::set_bounds(hwnd.get(), self.rect(app, self.expanded.get()));
+        if self.hwnd.get().is_some() {
+            ui::set_bounds(self.ui.window(), self.rect(app, self.expanded.get()));
         }
     }
 

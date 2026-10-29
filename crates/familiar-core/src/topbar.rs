@@ -86,9 +86,10 @@ impl TopBar {
         let h = Self::height_px(app);
         if let Some(bar) = self.appbar.borrow().as_ref() {
             bar.set_monitor(mon);
-            bar.set_thickness(h);
-        } else if let Some(hwnd) = self.hwnd.get() {
-            window::set_bounds(hwnd.get(), Rect { x: mon.x, y: mon.y, w: mon.w, h });
+            let r = bar.set_thickness(h);
+            ui::set_bounds(self.ui.window(), r);
+        } else if self.hwnd.get().is_some() {
+            ui::set_bounds(self.ui.window(), Rect { x: mon.x, y: mon.y, w: mon.w, h });
         }
     }
 
