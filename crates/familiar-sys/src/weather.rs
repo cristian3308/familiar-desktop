@@ -110,9 +110,9 @@ impl From<serde_json::Error> for WeatherError {
 }
 
 /// Closes a WinHTTP handle when dropped.
-struct Handle(*mut std::ffi::c_void);
+struct WinHttpHandle(*mut std::ffi::c_void);
 
-impl Drop for Handle {
+impl Drop for WinHttpHandle {
     fn drop(&mut self) {
         if !self.0.is_null() {
             unsafe {
@@ -122,8 +122,8 @@ impl Drop for Handle {
     }
 }
 
-fn check(h: *mut std::ffi::c_void) -> Result<Handle, WeatherError> {
-    if h.is_null() { Err(windows::core::Error::from_thread().into()) } else { Ok(Handle(h)) }
+fn check(h: *mut std::ffi::c_void) -> Result<WinHttpHandle, WeatherError> {
+    if h.is_null() { Err(windows::core::Error::from_thread().into()) } else { Ok(WinHttpHandle(h)) }
 }
 
 /// HTTPS GET of `host` + `path_and_query`; returns the body as text.

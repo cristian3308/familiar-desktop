@@ -506,7 +506,8 @@ impl App {
         });
     }
 
-    fn on_display_changed(&self) {
+    /// Monitor layout, resolution or DPI changed: re-place every surface.
+    pub fn on_display_changed(&self) {
         let old = self.monitor.get();
         let new = primary_monitor();
         self.monitor.set(new);

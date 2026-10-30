@@ -380,12 +380,29 @@ impl LayeredWindow {
                 let dpi = (wp.0 & 0xFFFF) as f32;
                 dispatch(WindowEvent::ScaleFactorChanged { scale_factor: dpi / 96.0 });
                 self.needs_redraw.set(true);
+                schedule_display_refresh();
             }
             WM_CLOSE => return Some(LRESULT(0)), // surfaces live as long as the shell
             _ => return None,
         }
         Some(LRESULT(0))
     }
+}
+
+thread_local! {
+    static DISPLAY_REFRESH: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Every surface gets WM_DPICHANGED when the scale changes; re-place the
+/// shell once, after they have all switched to the new factor.
+fn schedule_display_refresh() {
+    if DISPLAY_REFRESH.with(|p| p.replace(true)) {
+        return;
+    }
+    slint::Timer::single_shot(std::time::Duration::from_millis(120), || {
+        DISPLAY_REFRESH.with(|p| p.set(false));
+        crate::app::with_app(|a| a.on_display_changed());
+    });
 }
 
 fn ctrl_down() -> bool {
