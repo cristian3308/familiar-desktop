@@ -11,7 +11,7 @@
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use familiar_layout::dock::{DockMetrics, DockSlot, SlotKind, hit_test, layout_dock};
 use familiar_layout::easing::approach;
@@ -26,10 +26,87 @@ use crate::app::{App, with_app};
 use crate::ui::{self, DockIcon, DockWindow};
 
 const SPACING: f32 = 6.0;
-const PADDING: f32 = 8.0;
-const BOTTOM_MARGIN: f32 = 6.0;
+const PADDING: f32 = 6.0;
+const BOTTOM_MARGIN: f32 = 8.0;
+/// Layered windows let clicks through wherever a pixel is fully transparent,
+/// so the dock window can stay at its grown size: no resize when the pointer
+/// enters and no window region to recompute on every move, which is what
+/// made magnification stutter. The `winit` build still needs both.
+const LAYERED: bool = cfg!(not(feature = "winit"));
+/// Launch target of the trash tile.
+const TRASH: &str = "shell:RecycleBinFolder";
 const TOOLTIP_ROOM: f32 = 36.0;
 const SIDE_ROOM: f32 = 24.0;
+/// Seconds per launch-bounce hop.
+const BOUNCE_PERIOD: f32 = 0.6;
+/// Hops before giving up on an app that never shows a window.
+const BOUNCE_MAX_HOPS: u32 = 6;
+
+/// An icon bouncing while its app starts (macOS-style launch feedback).
+struct Bounce {
+    app_id: String,
+    start: Instant,
+    /// Stops after this many hops; lowered once the app has a window.
+    hops: u32,
+}
+
+impl Bounce {
+    fn elapsed_hops(&self) -> f32 {
+        self.start.elapsed().as_secs_f32() / BOUNCE_PERIOD
+    }
+
+    fn done(&self) -> bool {
+        self.elapsed_hops() >= self.hops as f32
+    }
+
+    /// Height above the plate in logical px: a series of decaying hops.
+    fn lift(&self, icon_size: f32) -> f32 {
+        let t = self.elapsed_hops();
+        if t >= self.hops as f32 {
+            return 0.0;
+        }
+        let amp = icon_size * 0.5 * (1.0 - 0.1 * t.floor()).max(0.4);
+        amp * (std::f32::consts::PI * t.fract()).sin()
+    }
+}
+
+/// What a dock tile is. Built-in tiles are drawn by the UI, not from icons.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Special {
+    App,
+    Launcher,
+    Trash,
+}
+
+impl Special {
+    /// Matches `DockIcon.kind` in `dock.slint`.
+    fn ui_kind(self) -> i32 {
+        match self {
+            Special::App => 0,
+            Special::Launcher => 1,
+            Special::Trash => 2,
+        }
+    }
+}
+
+/// Built-in macOS-style skin for some of Windows' own apps (`DockIcon.kind`
+/// 3–5), or 0 to use the app's real icon.
+fn system_skin(app_id: &str, exe: &str) -> i32 {
+    let id = app_id.to_ascii_lowercase();
+    let exe = exe.to_ascii_lowercase();
+    let file = exe.rsplit(['\\', '/']).next().unwrap_or_default();
+    if file == "explorer.exe" || id == "microsoft.windows.explorer" {
+        3
+    } else if id.contains("immersivecontrolpanel") || file == "systemsettings.exe" {
+        4
+    } else if id.contains("windowsterminal")
+        || matches!(file, "windowsterminal.exe" | "cmd.exe" | "powershell.exe" | "pwsh.exe")
+    {
+        5
+    } else {
+        0
+    }
+}
 
 #[derive(Clone, Debug)]
 struct Entry {
@@ -39,7 +116,27 @@ struct Entry {
     icon_path: PathBuf,
     pinned: bool,
     separator: bool,
+    special: Special,
     windows: Vec<Hwnd>,
+}
+
+impl Entry {
+    fn builtin(special: Special, name: &str) -> Self {
+        Self {
+            app_id: String::new(),
+            name: name.into(),
+            exe_path: String::new(),
+            icon_path: PathBuf::new(),
+            pinned: false,
+            separator: false,
+            special,
+            windows: Vec::new(),
+        }
+    }
+
+    fn separator() -> Self {
+        Self { separator: true, ..Self::builtin(Special::App, "") }
+    }
 }
 
 pub struct Dock {
@@ -54,6 +151,10 @@ pub struct Dock {
     target: Cell<f32>,
     grown: Cell<bool>,
     anim: Timer,
+    bounces: RefCell<Vec<Bounce>>,
+    bounce_anim: Timer,
+    /// Index of the icon being dragged to a new place.
+    dragging: Cell<Option<usize>>,
     /// Window width in logical px; fixed per entry set so hovering never
     /// resizes horizontally.
     width: Cell<f32>,
@@ -69,6 +170,9 @@ impl Dock {
         ui.on_clicked(|x| with_app(|a| a.dock.as_ref().map_or((), |d| d.on_click(a, x, Click::Primary))));
         ui.on_right_clicked(|x| with_app(|a| a.dock.as_ref().map_or((), |d| d.on_click(a, x, Click::Secondary))));
         ui.on_middle_clicked(|x| with_app(|a| a.dock.as_ref().map_or((), |d| d.on_click(a, x, Click::Middle))));
+        ui.on_drag_started(|x| with_app(|a| a.dock.as_ref().map_or((), |d| d.drag_start(x))));
+        ui.on_drag_moved(|x| with_app(|a| a.dock.as_ref().map_or((), |d| d.drag_move(a, x))));
+        ui.on_drag_ended(|| with_app(|a| a.dock.as_ref().map_or((), |d| d.drag_end(a))));
         Ok(Self {
             ui,
             model,
@@ -79,8 +183,11 @@ impl Dock {
             pointer: Cell::new(None),
             strength: Cell::new(0.0),
             target: Cell::new(0.0),
-            grown: Cell::new(false),
+            grown: Cell::new(LAYERED),
             anim: Timer::default(),
+            bounces: RefCell::new(Vec::new()),
+            bounce_anim: Timer::default(),
+            dragging: Cell::new(None),
             width: Cell::new(400.0),
         })
     }
@@ -114,7 +221,7 @@ impl Dock {
     fn window_rect(&self, app: &App, grown: bool) -> Rect {
         let mon = app.monitor.get();
         let m = Self::metrics(app);
-        let h = if grown { Self::grown_height(&m) } else { Self::resting_height(&m) };
+        let h = if grown || LAYERED { Self::grown_height(&m) } else { Self::resting_height(&m) };
         let (w, h) = ((self.width.get() * mon.scale).round() as i32, (h * mon.scale).round() as i32);
         Rect { x: mon.bounds.x + (mon.bounds.w - w) / 2, y: mon.bounds.y + mon.bounds.h - h, w, h }
     }
@@ -200,15 +307,18 @@ impl Dock {
         let m = Self::metrics(app);
         let kinds = self.kinds();
         let (slots, total) = layout_dock(&kinds, &m, self.width.get(), self.pointer.get(), self.strength.get());
+        let lifts = self.lifts(m.icon_size);
         let plate_w = total + 2.0 * PADDING;
         self.ui.set_plate_x((self.width.get() - plate_w) / 2.0);
         self.ui.set_plate_width(plate_w);
         for (i, s) in slots.iter().enumerate() {
+            let lift = lifts.get(i).copied().unwrap_or(0.0);
             if let Some(mut row) = self.model.row_data(i)
-                && (row.x != s.x || row.size != s.size)
+                && (row.x != s.x || row.size != s.size || row.lift != lift)
             {
                 row.x = s.x;
                 row.size = s.size;
+                row.lift = lift;
                 self.model.set_row_data(i, row);
             }
         }
@@ -219,13 +329,16 @@ impl Dock {
             _ => None,
         };
         self.ui.set_hovered(hovered.map_or(-1, |i| i as i32));
-        self.apply_region(app, &slots, plate_w, hovered);
+        self.apply_region(app, &slots, &lifts, plate_w, hovered);
         *self.slots.borrow_mut() = slots;
     }
 
     /// Clips the window to plate + magnified icons + tooltip. This shapes the
     /// DWM backdrop and lets clicks outside the dock reach the windows below.
-    fn apply_region(&self, app: &App, slots: &[DockSlot], plate_w: f32, hovered: Option<usize>) {
+    fn apply_region(&self, app: &App, slots: &[DockSlot], lifts: &[f32], plate_w: f32, hovered: Option<usize>) {
+        if LAYERED {
+            return;
+        }
         let Some(hwnd) = self.hwnd.get() else { return };
         let m = Self::metrics(app);
         let scale = app.monitor.get().scale;
@@ -241,8 +354,8 @@ impl Dock {
             rect: Rect { x: px(plate_x), y: px(plate_y), w: px(plate_w), h: px(plate_h) },
             radius: px(radius),
         }];
-        for s in slots {
-            let top = icons_bottom - s.size;
+        for (s, lift) in slots.iter().zip(lifts) {
+            let top = icons_bottom - s.size - lift;
             if top < plate_y {
                 parts.push(window::RegionPart {
                     rect: Rect { x: px(s.x), y: px(top), w: px(s.size), h: px(plate_y - top + radius) },
@@ -254,10 +367,10 @@ impl Dock {
             let s = slots[i];
             let (tw, th) = (self.ui.get_tip_width(), self.ui.get_tip_height());
             let tx = (s.x + s.size / 2.0 - tw / 2.0).min(self.width.get() - tw - 2.0).max(2.0);
-            let ty = (icons_bottom - s.size - th - 6.0).max(0.0);
+            let ty = (icons_bottom - s.size - th - 8.0).max(0.0);
             parts.push(window::RegionPart {
                 rect: Rect { x: px(tx), y: px(ty), w: px(tw), h: px(th) },
-                radius: px(7.0),
+                radius: px(th / 2.0),
             });
         }
         window::set_region(hwnd.get(), &parts);
@@ -294,17 +407,78 @@ impl Dock {
             self.anim.stop();
             if s == 0.0 {
                 self.pointer.set(None);
-                if self.grown.replace(false) && self.hwnd.get().is_some() {
-                    ui::set_bounds(self.ui.window(), self.window_rect(app, false));
-                }
-                self.layout_icons(app);
+                self.shrink_if_idle(app);
             }
+        }
+    }
+
+    /// Back to the resting strip once nothing is magnified or bouncing.
+    fn shrink_if_idle(&self, app: &App) {
+        if !LAYERED
+            && self.strength.get() == 0.0
+            && self.bounces.borrow().is_empty()
+            && self.grown.replace(false)
+            && self.hwnd.get().is_some()
+        {
+            ui::set_bounds(self.ui.window(), self.window_rect(app, false));
+        }
+        self.layout_icons(app);
+    }
+
+    /// Per-slot bounce offsets, in entry order.
+    fn lifts(&self, icon_size: f32) -> Vec<f32> {
+        let bounces = self.bounces.borrow();
+        self.entries
+            .borrow()
+            .iter()
+            .map(|e| {
+                bounces.iter().find(|b| b.app_id.eq_ignore_ascii_case(&e.app_id)).map_or(0.0, |b| b.lift(icon_size))
+            })
+            .collect()
+    }
+
+    /// Starts the launch bounce for `app_id` if it has an icon in the dock.
+    pub fn bounce(&self, app: &App, app_id: &str) {
+        let running = {
+            let entries = self.entries.borrow();
+            let Some(e) = entries.iter().find(|e| !e.separator && e.app_id.eq_ignore_ascii_case(app_id)) else {
+                return;
+            };
+            !e.windows.is_empty()
+        };
+        {
+            let mut bounces = self.bounces.borrow_mut();
+            bounces.retain(|b| !b.app_id.eq_ignore_ascii_case(app_id));
+            // A new instance of a running app gets a single hop.
+            let hops = if running { 1 } else { BOUNCE_MAX_HOPS };
+            bounces.push(Bounce { app_id: app_id.to_owned(), start: Instant::now(), hops });
+        }
+        if !self.grown.replace(true) && self.hwnd.get().is_some() {
+            ui::set_bounds(self.ui.window(), self.window_rect(app, true));
+        }
+        self.bounce_anim.start(TimerMode::Repeated, Duration::from_millis(16), || {
+            with_app(|a| {
+                if let Some(d) = a.dock.as_ref() {
+                    d.bounce_tick(a);
+                }
+            })
+        });
+    }
+
+    fn bounce_tick(&self, app: &App) {
+        self.bounces.borrow_mut().retain(|b| !b.done());
+        if self.bounces.borrow().is_empty() {
+            self.bounce_anim.stop();
+            self.shrink_if_idle(app);
+        } else {
+            self.layout_icons(app);
         }
     }
 
     /// Re-reads pinned items and running windows.
     pub fn rebuild(&self, app: &App) {
         let show_running = app.cfg.borrow().dock.show_running;
+        let custom_icons = app.cfg.borrow().dock.custom_icons;
         let pinned = app.store.borrow().dock_items().unwrap_or_default();
         let mut windows = windows_list::list_app_windows();
         let fg = windows_list::foreground();
@@ -319,6 +493,7 @@ impl Dock {
                     icon_path: PathBuf::from(&p.icon_cache_path),
                     pinned: true,
                     separator: false,
+                    special: Special::App,
                     windows: Vec::new(),
                 };
                 windows.retain(|w| {
@@ -351,24 +526,20 @@ impl Dock {
                     icon_path,
                     pinned: false,
                     separator: false,
+                    special: Special::App,
                     windows: vec![w.hwnd],
                 });
             }
             if !running.is_empty() && !entries.is_empty() {
-                entries.push(Entry {
-                    app_id: String::new(),
-                    name: String::new(),
-                    exe_path: String::new(),
-                    icon_path: PathBuf::new(),
-                    pinned: false,
-                    separator: true,
-                    windows: Vec::new(),
-                });
+                entries.push(Entry::separator());
             }
             entries.extend(running);
         }
+        entries.insert(0, Entry::builtin(Special::Launcher, "Inicio"));
+        entries.push(Entry::separator());
+        entries.push(Entry::builtin(Special::Trash, "Papelera"));
 
-        for e in entries.iter().filter(|e| !e.separator && !e.icon_path.exists()) {
+        for e in entries.iter().filter(|e| !e.separator && e.special == Special::App && !e.icon_path.exists()) {
             app.request_icon(&e.app_id, &e.exe_path);
         }
 
@@ -382,12 +553,25 @@ impl Dock {
                 separator: e.separator,
                 x: 0.0,
                 size: 0.0,
+                lift: 0.0,
+                kind: match e.special {
+                    Special::App if custom_icons => system_skin(&e.app_id, &e.exe_path),
+                    s => s.ui_kind(),
+                },
+                initial: e.name.chars().next().map(|c| c.to_uppercase().collect::<String>()).unwrap_or_default().into(),
             })
             .collect();
         let structure_changed = {
             let old = self.entries.borrow();
-            old.len() != entries.len() || old.iter().zip(&entries).any(|(a, b)| a.app_id != b.app_id)
+            old.len() != entries.len()
+                || old.iter().zip(&entries).any(|(a, b)| a.app_id != b.app_id || a.special != b.special)
         };
+        for b in self.bounces.borrow_mut().iter_mut() {
+            if entries.iter().any(|e| !e.windows.is_empty() && e.app_id.eq_ignore_ascii_case(&b.app_id)) {
+                // Finish the hop in flight, then land.
+                b.hops = b.hops.min(b.elapsed_hops().floor() as u32 + 1);
+            }
+        }
         *self.entries.borrow_mut() = entries;
         self.model.set_vec(rows);
         if structure_changed {
@@ -395,6 +579,36 @@ impl Dock {
         } else {
             self.layout_icons(app);
         }
+    }
+
+    /// Screen rectangle (physical px) of the dock icon that owns `hwnd`,
+    /// matched by window handle or, for a window the dock has not listed yet,
+    /// by AppUserModelID / executable.
+    pub fn icon_rect_for(&self, app: &App, hwnd: Hwnd) -> Option<Rect> {
+        let index = {
+            let entries = self.entries.borrow();
+            entries.iter().position(|e| e.windows.contains(&hwnd)).or_else(|| {
+                let aumid = windows_list::window_aumid(hwnd.get());
+                let exe = windows_list::process_path(windows_list::process_id(hwnd.get()));
+                entries.iter().position(|e| {
+                    !e.separator
+                        && (aumid.as_deref().is_some_and(|a| a.eq_ignore_ascii_case(&e.app_id))
+                            || (!exe.is_empty()
+                                && (exe.eq_ignore_ascii_case(&e.exe_path) || exe.eq_ignore_ascii_case(&e.app_id))))
+                })
+            })?
+        };
+        let slot = self.slots.borrow().get(index).copied()?;
+        let scale = app.monitor.get().scale;
+        let win = self.window_rect(app, true);
+        let icons_bottom = win.h as f32 / scale - BOTTOM_MARGIN - PADDING;
+        let px = |v: f32| (v * scale).round() as i32;
+        Some(Rect {
+            x: win.x + px(slot.x),
+            y: win.y + px(icons_bottom - slot.size),
+            w: px(slot.size),
+            h: px(slot.size),
+        })
     }
 
     /// Cheap update when only the foreground window changed.
@@ -425,11 +639,61 @@ impl Dock {
         }
     }
 
+    /// Pinned app icons can be dragged to a new place among the pinned ones.
+    fn drag_start(&self, x: f32) {
+        log::debug!("dock drag start x={x} hit={:?}", hit_test(&self.slots.borrow(), x));
+        let Some(i) = hit_test(&self.slots.borrow(), x) else { return };
+        let movable = self.entries.borrow().get(i).is_some_and(|e| e.pinned && e.special == Special::App);
+        if movable {
+            self.dragging.set(Some(i));
+            self.ui.set_drag_index(i as i32);
+        }
+    }
+
+    fn drag_move(&self, app: &App, x: f32) {
+        let Some(from) = self.dragging.get() else { return };
+        let Some(to) = hit_test(&self.slots.borrow(), x) else { return };
+        let target_ok = self.entries.borrow().get(to).is_some_and(|e| e.pinned && e.special == Special::App);
+        if to == from || !target_ok {
+            return;
+        }
+        {
+            let mut entries = self.entries.borrow_mut();
+            let e = entries.remove(from);
+            entries.insert(to, e);
+        }
+        let row = self.model.remove(from);
+        self.model.insert(to, row);
+        self.dragging.set(Some(to));
+        self.ui.set_drag_index(to as i32);
+        self.layout_icons(app);
+    }
+
+    fn drag_end(&self, app: &App) {
+        log::debug!("dock drag end {:?}", self.dragging.get());
+        if self.dragging.take().is_none() {
+            return;
+        }
+        self.ui.set_drag_index(-1);
+        let ids: Vec<String> = self.entries.borrow().iter().filter(|e| e.pinned).map(|e| e.app_id.clone()).collect();
+        let ids: Vec<&str> = ids.iter().map(String::as_str).collect();
+        if let Err(e) = app.store.borrow_mut().reorder_dock(&ids) {
+            log::warn!("saving dock order: {e}");
+        }
+    }
+
     fn on_click(&self, app: &App, x: f32, click: Click) {
         let Some(index) = hit_test(&self.slots.borrow(), x) else { return };
         let Some(entry) = self.entries.borrow().get(index).cloned() else { return };
         if entry.separator {
             return;
+        }
+        match (entry.special, click) {
+            (Special::Launcher, Click::Primary) => return app.launcher.toggle(app),
+            (Special::Launcher, Click::Secondary) => return app.settings.toggle(app),
+            (Special::Trash, Click::Primary) => return app.launch(TRASH),
+            (Special::App, _) => {}
+            _ => return,
         }
         match click {
             Click::Primary if !entry.windows.is_empty() => {

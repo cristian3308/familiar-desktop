@@ -9,7 +9,7 @@ use windows::Win32::Graphics::Gdi::{
 };
 use windows::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GA_PARENT, GWL_EXSTYLE, GetAncestor, GetDesktopWindow, GetWindowLongPtrW, HWND_BOTTOM, HWND_NOTOPMOST,
+    GA_PARENT, GWL_EXSTYLE, GetAncestor, GetDesktopWindow, GetWindowLongPtrW, HWND_BOTTOM, HWND_NOTOPMOST, HWND_TOP,
     HWND_TOPMOST, LWA_ALPHA, SW_HIDE, SW_SHOWNOACTIVATE, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
     SWP_NOZORDER, SetLayeredWindowAttributes, SetWindowLongPtrW, SetWindowPos, ShowWindow, WINDOWPOS,
     WM_WINDOWPOSCHANGING, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
@@ -142,6 +142,15 @@ pub fn show_no_activate(hwnd: HWND, visible: bool) {
 
 /// Keeps a window at the bottom of the z-order (just above the desktop),
 /// used for widgets when they are not attached to the wallpaper layer.
+/// While the desktop itself is in front (Win+D, or a click on the
+/// wallpaper), pinned windows float to the top instead: "show desktop"
+/// raises the desktop window above everything at the bottom of the z-order.
+static PINNED_FLOAT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn pinned_slot() -> HWND {
+    if PINNED_FLOAT.load(std::sync::atomic::Ordering::Relaxed) { HWND_TOP } else { HWND_BOTTOM }
+}
+
 pub fn pin_to_bottom(hwnd: HWND) {
     subclass::add(
         hwnd,
@@ -149,14 +158,35 @@ pub fn pin_to_bottom(hwnd: HWND) {
             if msg == WM_WINDOWPOSCHANGING {
                 // SAFETY: lParam of WM_WINDOWPOSCHANGING is a WINDOWPOS*.
                 let pos = unsafe { &mut *(lp.0 as *mut WINDOWPOS) };
-                pos.hwndInsertAfter = HWND_BOTTOM;
+                pos.hwndInsertAfter = pinned_slot();
                 pos.flags &= !SWP_NOZORDER;
             }
             None
         }),
     );
+    restack_pinned(hwnd);
+}
+
+/// Puts a normal (non-topmost) window above every other normal window.
+/// Windows refuses `SetForegroundWindow` from a background process, so a
+/// window opened from a click on a no-activate surface (the top bar) would
+/// otherwise appear *behind* the maximised app.
+pub fn bring_to_front(hwnd: HWND) {
+    let flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE;
     unsafe {
-        let _ = SetWindowPos(hwnd, Some(HWND_BOTTOM), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, flags);
+        let _ = SetWindowPos(hwnd, Some(HWND_NOTOPMOST), 0, 0, 0, 0, flags);
+    }
+}
+
+/// Switches pinned windows between "bottom" and "above the shown desktop".
+pub fn set_pinned_float(float: bool) {
+    PINNED_FLOAT.store(float, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn restack_pinned(hwnd: HWND) {
+    unsafe {
+        let _ = SetWindowPos(hwnd, Some(pinned_slot()), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
 }
 

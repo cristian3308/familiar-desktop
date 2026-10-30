@@ -1,19 +1,23 @@
-import { Theme } from "theme.slint";
+import { Theme, Label, Dot } from "theme.slint";
 
 component IconButton inherits Rectangle {
     in property <string> glyph;
-    in property <length> size: 18px;
+    in property <length> size: 16px;
+    // The primary button is a solid white disc with a black glyph.
+    in property <bool> primary;
     callback clicked();
-    width: 34px;
-    height: 34px;
-    border-radius: 17px;
-    background: touch.has-hover ? #ffffff1f : transparent;
-    animate background { duration: 120ms; }
+    width: root.primary ? 46px : 38px;
+    height: self.width;
+    border-radius: self.width / 2;
+    border-width: root.primary ? 0px : 1px;
+    border-color: touch.has-hover ? #ffffff66 : #ffffff26;
+    background: root.primary ? (touch.pressed ? #d0d0d0 : white) : (touch.has-hover ? #ffffff14 : transparent);
+    animate background, border-color { duration: 120ms; }
     Text {
         text: root.glyph;
         font-family: Theme.icons;
         font-size: root.size;
-        color: white;
+        color: root.primary ? black : white;
         horizontal-alignment: center;
         vertical-alignment: center;
     }
@@ -44,8 +48,8 @@ export component IslandWindow inherits Window {
     in property <bool> cam;
     in property <length> collapsed-width: 200px;
     in property <length> collapsed-height: 28px;
-    in property <length> expanded-width: 380px;
-    in property <length> expanded-height: 148px;
+    in property <length> expanded-width: 400px;
+    in property <length> expanded-height: 176px;
 
     callback hover-changed(bool);
     callback play-pause();
@@ -58,12 +62,15 @@ export component IslandWindow inherits Window {
         height: root.expanded ? root.expanded-height : root.collapsed-height;
         x: (root.width - self.width) / 2;
         y: 0;
-        border-radius: root.expanded ? 30px : self.height / 2;
+        border-radius: root.expanded ? 34px : self.height / 2;
         background: Theme.island;
+        border-width: 1px;
+        border-color: root.expanded ? #ffffff1f : #ffffff10;
         clip: true;
+        // Springy, slightly overshooting curve like the iPhone island.
         animate width, height, border-radius {
-            duration: 340ms;
-            easing: cubic-bezier(0.22, 1.12, 0.36, 1);
+            duration: 420ms;
+            easing: cubic-bezier(0.2, 1.25, 0.32, 1);
         }
 
         // Wraps the content: children (the transport buttons) get clicks
@@ -73,18 +80,19 @@ export component IslandWindow inherits Window {
                 root.hover-changed(self.has-hover);
             }
 
-            // Collapsed: artwork chip on the left, live bars on the right.
+            // Collapsed: artwork chip on the left, live dot bars on the right.
             HorizontalLayout {
                 opacity: root.expanded ? 0 : 1;
-                animate opacity { duration: 140ms; }
-                padding-left: 6px;
-                padding-right: 10px;
+                animate opacity { duration: 120ms; }
+                padding-left: 5px;
+                padding-right: 12px;
+                spacing: 8px;
                 alignment: space-between;
                 if root.has-media: Rectangle {
                     width: root.collapsed-height - 8px;
                     height: root.collapsed-height - 8px;
                     y: 4px;
-                    border-radius: 5px;
+                    border-radius: self.height / 2;
                     clip: true;
                     background: #ffffff1a;
                     if root.has-artwork: Image {
@@ -94,38 +102,73 @@ export component IslandWindow inherits Window {
                         image-fit: cover;
                     }
                 }
-                if root.mic || root.cam: Rectangle {
-                    width: 7px;
-                    height: 7px;
-                    y: (root.collapsed-height - 7px) / 2;
-                    border-radius: 3.5px;
-                    background: root.cam ? #30d158 : #ff9f0a;
+                // Idle: three quiet dots, the centre one red.
+                if !root.has-media: HorizontalLayout {
+                    alignment: center;
+                    spacing: 6px;
+                    horizontal-stretch: 1;
+                    for i in 3: Dot {
+                        size: 4px;
+                        y: (root.collapsed-height - 4px) / 2;
+                        background: i == 1 ? Theme.accent : #ffffff59;
+                    }
+                }
+                if root.mic || root.cam: Dot {
+                    size: 6px;
+                    y: (root.collapsed-height - 6px) / 2;
+                    background: root.cam ? #30d158 : Theme.accent;
                 }
                 if root.has-media: Image {
-                    width: 44px;
+                    width: 46px;
                     height: root.collapsed-height - 12px;
                     y: 6px;
                     source: root.spectrum;
                     image-fit: fill;
-                    colorize: Theme.accent;
+                    colorize: root.playing ? Theme.accent : #ffffff59;
                 }
             }
 
             // Expanded: now playing card.
             VerticalLayout {
                 opacity: root.expanded ? 1 : 0;
-                animate opacity { duration: 220ms; delay: 90ms; }
-                padding: 16px;
+                animate opacity { duration: 220ms; delay: 120ms; }
+                padding: 18px;
                 padding-top: 14px;
-                spacing: 10px;
+                spacing: 12px;
+
                 HorizontalLayout {
-                    spacing: 12px;
+                    spacing: 7px;
+                    height: 14px;
+                    Dot {
+                        size: 6px;
+                        y: 4px;
+                        background: root.playing ? Theme.accent : #ffffff59;
+                    }
+                    Label {
+                        text: root.playing ? "REPRODUCIENDO" : (root.has-media ? "EN PAUSA" : "SIN MÚSICA");
+                        font-size: 10px;
+                        color: #ffffffa6;
+                    }
                     Rectangle {
-                        width: 56px;
-                        height: 56px;
-                        border-radius: 12px;
+                        horizontal-stretch: 1;
+                    }
+                    Image {
+                        width: 54px;
+                        height: 14px;
+                        source: root.spectrum;
+                        image-fit: fill;
+                        colorize: Theme.accent;
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 14px;
+                    Rectangle {
+                        width: 60px;
+                        height: 60px;
+                        border-radius: 14px;
                         clip: true;
-                        background: #ffffff1a;
+                        background: #ffffff14;
                         if root.has-artwork: Image {
                             width: parent.width;
                             height: parent.height;
@@ -149,47 +192,44 @@ export component IslandWindow inherits Window {
                     }
                     VerticalLayout {
                         alignment: center;
-                        spacing: 2px;
+                        spacing: 3px;
                         Text {
                             text: root.has-media ? root.track : "Nada reproduciéndose";
                             color: white;
-                            font-size: 14px;
-                            font-weight: 600;
+                            font-family: Theme.display;
+                            font-size: 16px;
+                            font-weight: 700;
                             overflow: elide;
                         }
                         Text {
                             text: root.artist;
-                            color: #ffffffa0;
+                            color: #ffffff8c;
                             font-size: 12px;
                             overflow: elide;
                         }
                     }
-                    Image {
-                        width: 56px;
-                        height: 28px;
-                        y: 14px;
-                        source: root.spectrum;
-                        image-fit: fill;
-                        colorize: Theme.accent;
-                    }
                 }
+
                 HorizontalLayout {
                     alignment: center;
-                    spacing: 18px;
+                    spacing: 22px;
                     IconButton {
+                        y: 4px;
                         glyph: "\u{E892}";
                         clicked => {
                             root.previous();
                         }
                     }
                     IconButton {
+                        primary: true;
                         glyph: root.playing ? "\u{E769}" : "\u{E768}";
-                        size: 22px;
+                        size: 18px;
                         clicked => {
                             root.play-pause();
                         }
                     }
                     IconButton {
+                        y: 4px;
                         glyph: "\u{E893}";
                         clicked => {
                             root.next();

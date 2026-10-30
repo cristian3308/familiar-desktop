@@ -6,6 +6,7 @@ use windows::core::HSTRING;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LocalTime {
+    pub year: u16,
     pub hour: u16,
     pub minute: u16,
     pub second: u16,
@@ -18,6 +19,7 @@ pub struct LocalTime {
 pub fn now() -> LocalTime {
     let t = unsafe { GetLocalTime() };
     LocalTime {
+        year: t.wYear,
         hour: t.wHour,
         minute: t.wMinute,
         second: t.wSecond,

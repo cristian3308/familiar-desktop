@@ -1,4 +1,150 @@
-import { Theme } from "theme.slint";
+import { Theme, RoundRect } from "theme.slint";
+
+export struct CalCell {
+    label: string,
+    today: bool,
+    // Days of the previous/next month.
+    muted: bool,
+}
+
+export struct WeatherHour {
+    label: string,
+    temp: string,
+    sky: int,
+    day: bool,
+}
+
+// Weather glyph drawn with paths so it needs no emoji font.
+// sky: 0 clear, 1 partly cloudy, 2 cloudy, 3 fog, 4 rain, 5 snow, 6 storm.
+export component SkyIcon inherits Rectangle {
+    in property <int> sky;
+    in property <bool> day: true;
+    property <bool> cloud: root.sky >= 1 && root.sky != 3;
+    property <bool> shifted: root.sky == 1;
+
+    // Sun (or moon) — alone when clear, peeking behind the cloud when partly.
+    if root.sky <= 1 && root.day: Rectangle {
+        property <length> d: root.shifted ? root.width * 0.5 : root.width * 0.62;
+        x: root.shifted ? root.width * 0.08 : (root.width - self.d) / 2;
+        y: root.shifted ? root.height * 0.08 : (root.height - self.d) / 2;
+        width: self.d;
+        height: self.d;
+        border-radius: self.d / 2;
+        clip: true;
+        // Gradients are drawn as paths (see RoundRect in theme.slint).
+        RoundRect {
+            width: parent.width;
+            height: parent.height;
+            radius: parent.width / 2;
+            fill: @radial-gradient(circle, #fff3b0 0%, #ffd60a 55%, #ff9f0a 100%);
+        }
+    }
+    if root.sky <= 1 && !root.day: Path {
+        x: root.shifted ? 0 : root.width * 0.1;
+        y: root.shifted ? 0 : root.height * 0.1;
+        width: root.shifted ? root.width * 0.62 : root.width * 0.8;
+        height: self.width;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: Theme.text;
+        commands: "M 15 2 A 10 10 0 1 0 22 16 A 8 8 0 1 1 15 2 Z";
+    }
+    if root.cloud: Path {
+        x: root.shifted ? root.width * 0.12 : 0;
+        y: root.shifted ? root.height * 0.18 : root.height * 0.04;
+        width: root.shifted ? root.width * 0.88 : root.width;
+        height: self.width;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: root.sky >= 4 ? Theme.text.with-alpha(0.8) : Theme.text;
+        commands: "M 6.5 19 A 4.5 4.5 0 0 1 6 10 A 6 6 0 0 1 17.5 8.5 A 5.25 5.25 0 0 1 18 19 Z";
+    }
+    if root.sky == 3: Rectangle {
+        for i in 3: Rectangle {
+            x: root.width * (0.12 + 0.06 * mod(i, 2));
+            y: root.height * (0.3 + 0.18 * i);
+            width: root.width * 0.7;
+            height: max(2px, root.height * 0.08);
+            border-radius: self.height / 2;
+            background: Theme.text.with-alpha(0.8);
+        }
+    }
+    if root.sky == 4: Rectangle {
+        for i in 3: Rectangle {
+            x: root.width * (0.28 + 0.2 * i);
+            y: root.height * 0.8;
+            width: max(2px, root.width * 0.07);
+            height: root.height * 0.18;
+            border-radius: self.width / 2;
+            background: #64d2ff;
+        }
+    }
+    if root.sky == 5: Rectangle {
+        for i in 3: Rectangle {
+            x: root.width * (0.28 + 0.2 * i);
+            y: root.height * (0.82 + 0.06 * mod(i, 2));
+            width: max(3px, root.width * 0.1);
+            height: self.width;
+            border-radius: self.width / 2;
+            background: Theme.text;
+        }
+    }
+    if root.sky == 6: Path {
+        x: root.width * 0.38;
+        y: root.height * 0.55;
+        width: root.width * 0.3;
+        height: root.height * 0.45;
+        viewbox-width: 10;
+        viewbox-height: 16;
+        fill: #ffd60a;
+        commands: "M 6 0 L 0 9 L 4 9 L 2 16 L 10 6 L 5.5 6 L 7 0 Z";
+    }
+}
+
+component Meter inherits VerticalLayout {
+    in property <string> label;
+    in property <string> value;
+    in property <string> detail;
+    in property <int> percent;
+    in property <color> fill;
+    spacing: 4px;
+    Text {
+        text: root.label;
+        font-family: Theme.mono;
+        font-size: 10px;
+        letter-spacing: 1.2px;
+        color: Theme.text-secondary;
+    }
+    HorizontalLayout {
+        spacing: 6px;
+        Text {
+            text: root.value;
+            font-family: Theme.display;
+            font-size: 22px;
+            font-weight: 700;
+            color: Theme.text;
+            horizontal-stretch: 0;
+        }
+        Text {
+            text: root.detail;
+            font-size: 10px;
+            color: Theme.text-secondary;
+            vertical-alignment: bottom;
+        }
+    }
+    Rectangle {
+        height: 5px;
+        border-radius: 2.5px;
+        background: Theme.text.with-alpha(0.12);
+        Rectangle {
+            x: 0;
+            width: parent.width * clamp(root.percent, 0, 100) / 100;
+            border-radius: 2.5px;
+            background: root.fill;
+            animate width { duration: 600ms; easing: ease-out; }
+        }
+    }
+}
 
 export component WidgetWindow inherits Window {
     title: "Familiar Widget";
@@ -6,15 +152,60 @@ export component WidgetWindow inherits Window {
     background: transparent;
     default-font-family: Theme.font;
 
+    // 0 = dot matrix (SIGNAL/01, CLOCK/GRID, visualizer, analog clock),
+    // 1 = calendar, 2 = weather, 3 = system, 4 = now playing.
+    in property <int> kind;
+
     in property <string> caption;
     in property <string> subcaption;
     // Dot-matrix frame rendered in Rust (one texture upload per frame).
     in property <image> matrix;
 
+    in property <string> cal-weekday;
+    in property <string> cal-day;
+    in property <string> cal-month;
+    in property <[string]> cal-headers: ["L", "M", "X", "J", "V", "S", "D"];
+    in property <[CalCell]> cal-cells;
+
+    in property <bool> w-ready;
+    in property <string> w-city;
+    in property <string> w-temp;
+    in property <string> w-desc;
+    in property <string> w-hilo;
+    in property <int> w-sky;
+    in property <bool> w-day: true;
+    in property <[WeatherHour]> w-hours;
+
+    in property <int> s-cpu;
+    in property <int> s-ram;
+    in property <string> s-ram-detail;
+    in property <int> s-battery: -1;
+    in property <bool> s-charging;
+
+    in property <bool> np-has;
+    in property <bool> np-playing;
+    in property <string> np-track;
+    in property <string> np-artist;
+    in property <image> np-artwork;
+    in property <bool> np-has-artwork;
+
     callback drag-moved(length, length);
     callback drag-ended();
+    // A click that did not move the widget (e.g. next visualizer scene).
+    callback tapped();
+    callback np-previous();
+    callback np-play-pause();
+    callback np-next();
 
-    Rectangle {
+    property <bool> dragged;
+    // Ink for text drawn on the accent / on the primary text colour.
+    property <bool> light-accent: Theme.accent.red * 0.3 + Theme.accent.green * 0.59 + Theme.accent.blue * 0.11 > 170;
+    property <color> on-accent: root.light-accent ? #000000 : #ffffff;
+    property <bool> light-text: Theme.text.red * 0.3 + Theme.text.green * 0.59 + Theme.text.blue * 0.11 > 128;
+    property <color> on-text: root.light-text ? #000000 : #ffffff;
+
+    // ----- dot matrix ----------------------------------------------------
+    if root.kind == 0: Rectangle {
         background: Theme.tint;
         border-radius: Theme.radius;
         border-width: 1px;
@@ -24,9 +215,18 @@ export component WidgetWindow inherits Window {
             padding: 14px;
             spacing: 8px;
             HorizontalLayout {
+                spacing: 7px;
+                Rectangle {
+                    width: 5px;
+                    height: 5px;
+                    y: (parent.height - 5px) / 2;
+                    border-radius: 2.5px;
+                    background: Theme.accent;
+                }
                 Text {
                     text: root.caption;
                     color: Theme.text-secondary;
+                    font-family: Theme.mono;
                     font-size: 10px;
                     font-weight: 700;
                     letter-spacing: 1.6px;
@@ -37,6 +237,7 @@ export component WidgetWindow inherits Window {
                 Text {
                     text: root.subcaption;
                     color: Theme.accent;
+                    font-family: Theme.mono;
                     font-size: 10px;
                     font-weight: 700;
                     letter-spacing: 1.2px;
@@ -50,14 +251,318 @@ export component WidgetWindow inherits Window {
         }
     }
 
+    // ----- calendar: big date on the left, month grid on the right -------
+    if root.kind == 1: Rectangle {
+        background: Theme.tint;
+        border-radius: Theme.radius;
+        HorizontalLayout {
+            padding: 18px;
+            spacing: 18px;
+            VerticalLayout {
+                width: 120px;
+                alignment: start;
+                Text {
+                    text: root.cal-weekday;
+                    color: Theme.accent;
+                    font-size: 13px;
+                    font-weight: 700;
+                    letter-spacing: 0.5px;
+                }
+                Text {
+                    text: root.cal-day;
+                    color: Theme.text;
+                    font-family: Theme.display;
+                    font-size: 64px;
+                    font-weight: 300;
+                }
+                Text {
+                    text: root.cal-month;
+                    color: Theme.text-secondary;
+                    font-size: 12px;
+                    font-weight: 600;
+                }
+            }
+            Rectangle {
+                width: 1px;
+                background: Theme.glow;
+            }
+            Rectangle {
+                property <length> cw: self.width / 7;
+                property <length> ch: (self.height - 18px) / 6;
+                for h[i] in root.cal-headers: Text {
+                    x: i * parent.cw;
+                    y: 0;
+                    width: parent.cw;
+                    height: 14px;
+                    text: h;
+                    color: i >= 5 ? Theme.text-secondary : Theme.text;
+                    font-size: 10px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                }
+                for c[i] in root.cal-cells: Rectangle {
+                    x: mod(i, 7) * parent.cw;
+                    y: 18px + floor(i / 7) * parent.ch;
+                    width: parent.cw;
+                    height: parent.ch;
+                    if c.today: Rectangle {
+                        width: min(parent.width, parent.height) - 2px;
+                        height: self.width;
+                        border-radius: self.width / 2;
+                        background: Theme.accent;
+                    }
+                    Text {
+                        text: c.label;
+                        color: c.today ? root.on-accent : (c.muted ? Theme.text-secondary.with-alpha(0.5) : Theme.text);
+                        font-size: 11px;
+                        font-weight: c.today ? 700 : 500;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+
+    // ----- weather --------------------------------------------------------
+    if root.kind == 2: Rectangle {
+        border-radius: Theme.radius;
+        border-width: 1px;
+        border-color: Theme.glow;
+        clip: true;
+        RoundRect {
+            width: parent.width;
+            height: parent.height;
+            radius: Theme.radius;
+            fill: root.w-day ? @linear-gradient(160deg, Theme.accent.with-alpha(0.85) 0%, Theme.tint 100%) : @linear-gradient(160deg, Theme.tint 0%, Theme.accent.with-alpha(0.4) 100%);
+        }
+        VerticalLayout {
+            padding: 16px;
+            padding-bottom: 12px;
+            spacing: 6px;
+            HorizontalLayout {
+                VerticalLayout {
+                    alignment: start;
+                    Text {
+                        text: root.w-ready ? root.w-city : "Clima";
+                        color: Theme.text;
+                        font-size: 14px;
+                        font-weight: 700;
+                    }
+                    Text {
+                        text: root.w-ready ? root.w-temp : "--°";
+                        color: Theme.text;
+                        font-family: Theme.display;
+                        font-size: 44px;
+                        font-weight: 300;
+                    }
+                }
+                Rectangle {
+                    horizontal-stretch: 1;
+                }
+                VerticalLayout {
+                    alignment: start;
+                    spacing: 2px;
+                    SkyIcon {
+                        x: parent.width - self.width;
+                        width: 30px;
+                        height: 30px;
+                        sky: root.w-sky;
+                        day: root.w-day;
+                    }
+                    Text {
+                        text: root.w-ready ? root.w-desc : "Cargando…";
+                        color: Theme.text;
+                        font-size: 12px;
+                        font-weight: 600;
+                        horizontal-alignment: right;
+                    }
+                    Text {
+                        text: root.w-hilo;
+                        color: Theme.text.with-alpha(0.8);
+                        font-size: 11px;
+                        horizontal-alignment: right;
+                    }
+                }
+            }
+            HorizontalLayout {
+                alignment: space-between;
+                for h in root.w-hours: VerticalLayout {
+                    spacing: 3px;
+                    width: 40px;
+                    Text {
+                        text: h.label;
+                        color: Theme.text.with-alpha(0.7);
+                        font-size: 10px;
+                        font-weight: 600;
+                        horizontal-alignment: center;
+                    }
+                    SkyIcon {
+                        x: (parent.width - self.width) / 2;
+                        width: 20px;
+                        height: 20px;
+                        sky: h.sky;
+                        day: h.day;
+                    }
+                    Text {
+                        text: h.temp;
+                        color: Theme.text;
+                        font-size: 12px;
+                        font-weight: 600;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+
+    // ----- system ---------------------------------------------------------
+    if root.kind == 3: Rectangle {
+        border-radius: Theme.radius;
+        clip: true;
+        RoundRect {
+            width: parent.width;
+            height: parent.height;
+            radius: Theme.radius;
+            fill: Theme.tint;
+        }
+        border-width: 1px;
+        border-color: Theme.glow;
+        HorizontalLayout {
+            padding: 16px;
+            spacing: 18px;
+            Meter {
+                label: "CPU";
+                value: root.s-cpu + "%";
+                percent: root.s-cpu;
+                fill: root.s-cpu >= 85 ? #ff453a : Theme.accent;
+            }
+            Meter {
+                label: "MEMORIA";
+                value: root.s-ram + "%";
+                detail: root.s-ram-detail;
+                percent: root.s-ram;
+                fill: Theme.accent.with-alpha(0.6);
+            }
+            Meter {
+                label: "BATERÍA";
+                value: root.s-battery >= 0 ? root.s-battery + "%" : "AC";
+                detail: root.s-charging ? "cargando" : "";
+                percent: root.s-battery >= 0 ? root.s-battery : 100;
+                fill: root.s-battery >= 0 && root.s-battery <= 20 && !root.s-charging ? #ff453a : #30d158;
+            }
+        }
+    }
+
     TouchArea {
-        mouse-cursor: self.pressed ? MouseCursor.grabbing : MouseCursor.default;
+        mouse-cursor: self.pressed && root.dragged ? MouseCursor.grabbing : MouseCursor.default;
         moved => {
-            root.drag-moved(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y);
+            if self.pressed && abs(self.mouse-x - self.pressed-x) + abs(self.mouse-y - self.pressed-y) > 3px {
+                root.dragged = true;
+            }
+            if root.dragged {
+                root.drag-moved(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y);
+            }
         }
         pointer-event(ev) => {
+            if ev.kind == PointerEventKind.down {
+                root.dragged = false;
+            }
             if ev.kind == PointerEventKind.up && ev.button == PointerEventButton.left {
-                root.drag-ended();
+                if root.dragged {
+                    root.drag-ended();
+                } else {
+                    root.tapped();
+                }
+            }
+        }
+    }
+
+    // ----- now playing (above the drag area so its buttons get clicks) ---
+    if root.kind == 4: Rectangle {
+        background: Theme.tint;
+        border-radius: Theme.radius;
+        border-width: 1px;
+        border-color: Theme.glow;
+        clip: true;
+        HorizontalLayout {
+            padding: 14px;
+            spacing: 12px;
+            Rectangle {
+                width: 60px;
+                height: 60px;
+                border-radius: 12px;
+                clip: true;
+                background: Theme.text.with-alpha(0.08);
+                if root.np-has-artwork: Image {
+                    width: parent.width;
+                    height: parent.height;
+                    source: root.np-artwork;
+                    image-fit: cover;
+                }
+                if !root.np-has-artwork: Text {
+                    text: "\u{E8D6}";
+                    font-family: Theme.icons;
+                    font-size: 22px;
+                    color: Theme.text.with-alpha(0.4);
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+            VerticalLayout {
+                alignment: center;
+                spacing: 2px;
+                Text {
+                    text: root.np-playing ? "REPRODUCIENDO" : (root.np-has ? "EN PAUSA" : "MÚSICA");
+                    font-family: Theme.mono;
+                    font-size: 9px;
+                    letter-spacing: 1.2px;
+                    color: root.np-playing ? Theme.accent : Theme.text-secondary;
+                }
+                Text {
+                    text: root.np-has ? root.np-track : "Nada reproduciéndose";
+                    color: Theme.text;
+                    font-size: 14px;
+                    font-weight: 700;
+                    overflow: elide;
+                }
+                Text {
+                    text: root.np-artist;
+                    color: Theme.text-secondary;
+                    font-size: 12px;
+                    overflow: elide;
+                }
+            }
+            for b[i] in [
+                { glyph: "\u{E892}", size: 14px },
+                { glyph: root.np-playing ? "\u{E769}" : "\u{E768}", size: 18px },
+                { glyph: "\u{E893}", size: 14px },
+            ]: Rectangle {
+                width: i == 1 ? 40px : 30px;
+                height: self.width;
+                y: (parent.height - self.height) / 2;
+                border-radius: self.width / 2;
+                background: i == 1 ? Theme.text : (t.has-hover ? Theme.text.with-alpha(0.12) : transparent);
+                Text {
+                    text: b.glyph;
+                    font-family: Theme.icons;
+                    font-size: b.size;
+                    color: i == 1 ? root.on-text : Theme.text;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+                t := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        if i == 0 {
+                            root.np-previous();
+                        } else if i == 1 {
+                            root.np-play-pause();
+                        } else {
+                            root.np-next();
+                        }
+                    }
+                }
             }
         }
     }

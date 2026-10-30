@@ -9,7 +9,7 @@ en un único binario Rust sin navegador embebido.
 |---|---|
 | < 25 MB de RAM | Sin WebView2/Chromium ni OpenGL: UI compilada con Slint y dibujada por CPU en ventanas Win32 *layered* (`UpdateLayeredWindow`), un solo proceso, estado en SQLite con caché de 256 KiB. |
 | 0 % de CPU en reposo | Todos los vigilantes bloquean en el kernel (`GetMessageW`, `WaitForMultipleObjects`, `RegNotifyChangeKeyValue`, `ReadDirectoryChangesW`). Los únicos temporizadores periódicos son el reloj (1 vez por minuto) y las animaciones, que se detienen solas. |
-| $0, 100 % local | Ningún servicio de red. |
+| $0, local | El único acceso a internet es el widget de clima (Open-Meteo, gratis y sin clave), y solo si está activado. |
 
 > **Estado y memoria medida:**
 >
@@ -83,6 +83,7 @@ graph TD
   las zonas transparentes llegan a las ventanas de debajo.
   - Clic: abre o minimiza la app, o recorre sus ventanas si tiene varias. Clic
     central: abre una instancia nueva. Clic derecho: ancla o desancla.
+    Arrastrar un icono anclado lo cambia de sitio (el orden se guarda).
 - **Puntos de privacidad**: `RegNotifyChangeKeyValue` sobre
   `HKCU\…\CapabilityAccessManager\ConsentStore` (subárbol). Una app usa la
   cámara o el micrófono mientras su `LastUsedTimeStop == 0`; se recorren las
@@ -168,6 +169,43 @@ Para medir el consumo: abre el Administrador de tareas → Detalles → columna
 "Memoria (conjunto de trabajo privado)". Para ver el detalle por hilo usa
 Process Explorer.
 
+## Ajustes
+
+Clic en el logo de la barra superior (o clic derecho en el botón de inicio del
+Dock) abre **Ajustes**:
+
+- **Apariencia**: tema, color de acento y opacidad de la barra superior.
+- **Dock**: tamaño de los iconos, ampliación, iconos estilo macOS para
+  Explorador, Configuración y Terminal, y apps abiertas.
+- **Widgets**: calendario, clima (con la ciudad), sistema (CPU, memoria y
+  batería), música, reloj analógico de puntos, SIGNAL/01, reloj de puntos y el
+  **visualizador** (seis escenas; un toque cambia de escena). Toman los colores
+  del tema, se arrastran y se ajustan a la rejilla, y se añaden o quitan al
+  momento, sin reiniciar.
+- **General**: ocultar la barra de tareas de Windows, abrir al iniciar Windows,
+  reiniciar y salir.
+
+- **Paletas**: Graphite, Wine, Black (Nothing Dark), Paper y las demás, como
+  tarjetas de color.
+
+## Control Center, bloqueo y animaciones
+
+- **Control Center** (icono de interruptores en la barra superior, o clic en la
+  batería): Wi-Fi y Bluetooth (encender/apagar), música, brillo de la pantalla,
+  volumen y silencio, claro/oscuro, bloquear, Ajustes de Familiar y
+  Configuración de Windows.
+- **Splash y pantalla de bloqueo** al iniciar: logo de puntos, reloj grande de
+  puntos, fecha, música y batería; se entra con un clic o una tecla. Es solo
+  visual: **Win+L** sigue siendo el bloqueo con contraseña.
+- **Ventanas**: al abrirse hacen zoom desde su icono del Dock; al minimizarse
+  entran en él con el **efecto genio** de macOS y al restaurarse salen igual. Se
+  animan miniaturas DWM (la ventana en 64 tiras que se estrechan hacia el
+  icono), compuestas por la GPU, así que no cuestan CPU. Al lanzar una app, su
+  icono rebota.
+- Si Windows tiene los efectos visuales en "mejor rendimiento", activa
+  *Configuración → Accesibilidad → Efectos visuales → Efectos de animación*
+  para que el resto de transiciones de Windows también sean suaves.
+
 ## Uso
 
 | Acción | Atajo |
@@ -190,14 +228,17 @@ modo portable): `config.toml`, `themes\`, `familiar_state.db` y
 `familiar-core.log`. Con `FAMILIAR_LOG=debug` se obtiene más detalle en el log.
 
 ```toml
-theme = "ember-dark"        # o una ruta a un .toml
+theme = "nothing-dark"      # o una ruta a un .toml
 hide_taskbar = true         # pruébalo primero con false
 autostart = false
+window_animations = true    # zoom de ventanas desde/hacia el Dock
+lock_on_start = true        # splash y pantalla de bloqueo al iniciar
 
 [dock]
 enabled = true
 reserve_space = true        # las ventanas maximizadas acaban encima del Dock
 show_running = true
+custom_icons = true         # iconos estilo macOS para Explorador, Configuración y Terminal
 
 [top_bar]
 enabled = true
@@ -208,8 +249,9 @@ enabled = true
 
 [widgets]
 enabled = true
-attach_to_wallpaper = false
-items = ["signal_01", "clock_grid"]
+attach_to_wallpaper = false # true no funciona con fondos animados (Lively, Wallpaper Engine)
+items = ["calendar", "weather", "system", "signal_01", "visualizer", "analog_clock", "now_playing"]
+weather_city = "Bogotá"
 
 [launcher]
 hotkey = "win"              # o "alt+space", "ctrl+shift+k", ...
@@ -220,7 +262,7 @@ pause_on_fullscreen = true
 pause_on_battery_saver = true
 ```
 
-Los temas (`ember-dark`, `glacier-light`, `mono-signal`) se describen en
+Los temas (`nothing-dark` por defecto, `nothing-light`, `ember-dark`, `glacier-light`, `mono-signal`) se describen en
 [`crates/familiar-theme/themes/README.md`](crates/familiar-theme/themes/README.md).
 Al guardar el `.toml` activo, el cambio se aplica al instante.
 
@@ -237,9 +279,8 @@ Al guardar el `.toml` activo, el cambio se aplica al instante.
 
 - Con `hide_taskbar = true` desaparece también el **área de notificación** (iconos de la bandeja del sistema). Alojar esos iconos requiere interceptar `Shell_NotifyIcon` y aún no está hecho. El menú Inicio sigue disponible con **Ctrl+Esc**.
 - Solo usa el **monitor principal**; los monitores secundarios aún no tienen barra ni Dock.
-- El Dock no permite **reordenar arrastrando** (el orden se guarda en `position_index`; falta la interacción).
 - Los widgets de **pantalla de bloqueo** están previstos en el esquema (`target_screen = 'lockscreen'`), pero no implementados: Windows no permite dibujar sobre la pantalla de bloqueo desde una app de usuario.
-- **Clima** y otros widgets que necesitan red quedan fuera por el requisito de "100 % local".
+- El **clima** es el único widget que usa la red (Open-Meteo, sin clave); se desactiva en Ajustes → Widgets.
 - El idioma del teclado se actualiza al cambiar de ventana y cada minuto, no al instante si lo cambias dentro de la misma ventana.
 
 ## Licencias de terceros

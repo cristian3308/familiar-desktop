@@ -14,14 +14,16 @@ use familiar_sys::media::{MediaCommand, NowPlaying};
 use familiar_sys::privacy::PrivacyState;
 use familiar_sys::window::{self, Rect, SurfaceOptions};
 use slint::{ComponentHandle, Timer, TimerMode};
+use windows::Win32::Foundation::POINT;
+use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 
 use crate::app::{App, with_app};
 use crate::ui::{self, IslandWindow};
 
-const EXPANDED_W: f32 = 380.0;
-const EXPANDED_H: f32 = 148.0;
-const MEDIA_W: f32 = 210.0;
-const IDLE_W: f32 = 120.0;
+const EXPANDED_W: f32 = 400.0;
+const EXPANDED_H: f32 = 184.0;
+const MEDIA_W: f32 = 200.0;
+const IDLE_W: f32 = 96.0;
 const TOP_GAP: f32 = 3.0;
 
 pub struct Island {
@@ -29,6 +31,7 @@ pub struct Island {
     hwnd: Cell<Option<Hwnd>>,
     expanded: Cell<bool>,
     shrink: Timer,
+    probe: Timer,
 }
 
 impl Island {
@@ -45,7 +48,13 @@ impl Island {
         ui.on_next(|| with_app(|a| a.media_command(MediaCommand::Next)));
         ui.on_previous(|| with_app(|a| a.media_command(MediaCommand::Previous)));
         ui.on_open_source(|| with_app(|a| a.focus_media_source()));
-        Ok(Self { ui, hwnd: Cell::new(None), expanded: Cell::new(false), shrink: Timer::default() })
+        Ok(Self {
+            ui,
+            hwnd: Cell::new(None),
+            expanded: Cell::new(false),
+            shrink: Timer::default(),
+            probe: Timer::default(),
+        })
     }
 
     fn collapsed_size(&self, app: &App) -> (f32, f32) {
@@ -56,7 +65,8 @@ impl Island {
 
     fn rect(&self, app: &App, expanded: bool) -> Rect {
         let mon = app.monitor.get();
-        let (w, h) = if expanded { (EXPANDED_W, EXPANDED_H) } else { self.collapsed_size(app) };
+        // Room for the spring easing to overshoot without being clipped.
+        let (w, h) = if expanded { (EXPANDED_W + 24.0, EXPANDED_H + 12.0) } else { self.collapsed_size(app) };
         let (w, h) = ((w * mon.scale).round() as i32, (h * mon.scale).round() as i32);
         Rect { x: mon.bounds.x + (mon.bounds.w - w) / 2, y: mon.bounds.y + (TOP_GAP * mon.scale).round() as i32, w, h }
     }
@@ -93,26 +103,46 @@ impl Island {
         window::raise_topmost(h);
     }
 
+    /// Expands on hover. Leaving is *not* taken from hover events: growing
+    /// the layered window leaves its new area transparent for a frame, and
+    /// Windows then reports the pointer as gone, which used to snap the
+    /// island shut right after opening. Instead, while expanded, the real
+    /// cursor position is probed and the island closes once it is outside.
     fn on_hover(&self, app: &App, hovered: bool) {
-        if self.hwnd.get().is_none() {
+        if self.hwnd.get().is_none() || !hovered {
             return;
         }
-        if hovered {
-            self.shrink.stop();
-            if !self.expanded.replace(true) {
-                ui::set_bounds(self.ui.window(), self.rect(app, true));
-            }
-            self.ui.set_expanded(true);
-        } else {
-            self.ui.set_expanded(false);
-            self.shrink.start(TimerMode::SingleShot, Duration::from_millis(380), || {
-                with_app(|a| {
-                    if let Some(i) = a.island.as_ref() {
-                        i.collapse_window(a);
-                    }
-                })
-            });
+        self.shrink.stop();
+        if !self.expanded.replace(true) {
+            ui::set_bounds(self.ui.window(), self.rect(app, true));
         }
+        self.ui.set_expanded(true);
+        self.probe.start(TimerMode::Repeated, Duration::from_millis(120), || {
+            with_app(|a| {
+                if let Some(i) = a.island.as_ref() {
+                    i.check_pointer(a);
+                }
+            })
+        });
+    }
+
+    fn check_pointer(&self, app: &App) {
+        let r = self.rect(app, true);
+        let mut p = POINT::default();
+        let inside =
+            unsafe { GetCursorPos(&mut p) }.is_ok() && p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
+        if inside {
+            return;
+        }
+        self.probe.stop();
+        self.ui.set_expanded(false);
+        self.shrink.start(TimerMode::SingleShot, Duration::from_millis(460), || {
+            with_app(|a| {
+                if let Some(i) = a.island.as_ref() {
+                    i.collapse_window(a);
+                }
+            })
+        });
     }
 
     fn collapse_window(&self, app: &App) {

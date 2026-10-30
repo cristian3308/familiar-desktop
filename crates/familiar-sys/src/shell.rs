@@ -37,6 +37,11 @@ pub enum ShellEvent {
     WindowsChanged,
     /// A window title changed.
     TitleChanged(Hwnd),
+    /// An app window appeared (shown or uncloaked); drives the open effect.
+    WindowShown(Hwnd),
+    /// An app window started minimising / was restored.
+    MinimizeStart(Hwnd),
+    MinimizeEnd(Hwnd),
     /// Ctrl+Alt+Q: restore the taskbar and quit.
     EmergencyExit,
     /// The launcher hotkey (when registered as a classic hotkey).
@@ -256,13 +261,19 @@ unsafe extern "system" fn win_event_proc(
             }
         }
         EVENT_OBJECT_DESTROY => emit(ShellEvent::WindowsChanged),
-        EVENT_OBJECT_CREATE
-        | EVENT_OBJECT_SHOW
-        | EVENT_OBJECT_HIDE
-        | EVENT_OBJECT_CLOAKED
-        | EVENT_OBJECT_UNCLOAKED
-        | EVENT_SYSTEM_MINIMIZESTART
-        | EVENT_SYSTEM_MINIMIZEEND
+        EVENT_OBJECT_SHOW | EVENT_OBJECT_UNCLOAKED if crate::windows_list::is_app_window(hwnd) => {
+            emit(ShellEvent::WindowShown(hwnd.into()));
+            emit(ShellEvent::WindowsChanged);
+        }
+        EVENT_SYSTEM_MINIMIZESTART => {
+            emit(ShellEvent::MinimizeStart(hwnd.into()));
+            emit(ShellEvent::WindowsChanged);
+        }
+        EVENT_SYSTEM_MINIMIZEEND => {
+            emit(ShellEvent::MinimizeEnd(hwnd.into()));
+            emit(ShellEvent::WindowsChanged);
+        }
+        EVENT_OBJECT_CREATE | EVENT_OBJECT_SHOW | EVENT_OBJECT_HIDE | EVENT_OBJECT_CLOAKED | EVENT_OBJECT_UNCLOAKED
             if crate::windows_list::is_top_level(hwnd) =>
         {
             emit(ShellEvent::WindowsChanged);

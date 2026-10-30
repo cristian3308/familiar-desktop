@@ -1,0 +1,432 @@
+import { Theme, Label } from "theme.slint";
+
+// Round icon + label tile (Wi-Fi, Bluetooth).
+component Toggle inherits Rectangle {
+    in property <string> glyph;
+    in property <string> title;
+    in property <string> detail;
+    in property <bool> on;
+    in property <bool> available: true;
+    callback clicked();
+    height: 64px;
+    border-radius: 16px;
+    background: touch.has-hover ? #ffffff1f : #ffffff14;
+    opacity: root.available ? 1 : 0.4;
+    HorizontalLayout {
+        padding: 12px;
+        spacing: 10px;
+        Rectangle {
+            width: 36px;
+            height: 36px;
+            y: 2px;
+            border-radius: 18px;
+            background: root.on ? #0a84ff : #ffffff26;
+            animate background { duration: 150ms; }
+            Text {
+                text: root.glyph;
+                font-family: Theme.icons;
+                font-size: 15px;
+                color: white;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            Text {
+                text: root.title;
+                color: white;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            Text {
+                text: root.detail;
+                color: #ffffff99;
+                font-size: 11px;
+                overflow: elide;
+            }
+        }
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            if root.available {
+                root.clicked();
+            }
+        }
+    }
+}
+
+// Wide slider with a leading glyph, like macOS Display / Sound.
+component Bar inherits Rectangle {
+    in property <string> glyph;
+    in-out property <float> value;
+    callback moved(float);
+    callback released();
+    height: 30px;
+    border-radius: 15px;
+    background: #ffffff1f;
+    clip: true;
+    Rectangle {
+        x: 0;
+        width: max(30px, parent.width * root.value);
+        border-radius: 15px;
+        background: #f2f2f7;
+    }
+    Text {
+        x: 9px;
+        text: root.glyph;
+        font-family: Theme.icons;
+        font-size: 13px;
+        color: #3a3a3c;
+        vertical-alignment: center;
+    }
+    touch := TouchArea {
+        function set(x: length) {
+            root.value = clamp(x / root.width, 0, 1);
+            root.moved(root.value);
+        }
+        pointer-event(ev) => {
+            if ev.kind == PointerEventKind.down {
+                self.set(self.mouse-x);
+            }
+            if ev.kind == PointerEventKind.up {
+                root.released();
+            }
+        }
+        moved => {
+            if self.pressed {
+                self.set(self.mouse-x);
+            }
+        }
+    }
+}
+
+component Section inherits Rectangle {
+    border-radius: 16px;
+    background: #ffffff14;
+    VerticalLayout {
+        padding: 12px;
+        spacing: 8px;
+        @children
+    }
+}
+
+component Link inherits Rectangle {
+    in property <string> glyph;
+    in property <string> text;
+    callback clicked();
+    height: 40px;
+    border-radius: 12px;
+    background: touch.has-hover ? #ffffff1f : #ffffff14;
+    HorizontalLayout {
+        padding-left: 12px;
+        spacing: 10px;
+        Text {
+            text: root.glyph;
+            font-family: Theme.icons;
+            font-size: 14px;
+            color: white;
+            vertical-alignment: center;
+        }
+        Text {
+            text: root.text;
+            color: white;
+            font-size: 13px;
+            vertical-alignment: center;
+        }
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+export component ControlCenterWindow inherits Window {
+    title: "Familiar Control Center";
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+    default-font-family: Theme.font;
+
+    in property <bool> shown: true;
+    in property <bool> wifi-available: true;
+    in property <bool> wifi-on;
+    in property <string> network;
+    in property <bool> bt-available: true;
+    in property <bool> bt-on;
+    in-out property <float> volume;
+    in property <bool> muted;
+    in-out property <float> brightness;
+    in property <bool> has-brightness;
+    in property <bool> dark: true;
+    in property <bool> has-media;
+    in property <bool> playing;
+    in property <string> track;
+    in property <string> artist;
+    in property <image> artwork;
+    in property <bool> has-artwork;
+
+    callback toggle-wifi();
+    callback toggle-bluetooth();
+    callback volume-moved(float);
+    callback toggle-mute();
+    callback brightness-released(float);
+    callback set-dark(bool);
+    callback open-system-settings();
+    callback open-familiar-settings();
+    callback lock();
+    callback previous();
+    callback play-pause();
+    callback next();
+
+    card := Rectangle {
+        y: root.shown ? 0px : -10px;
+        opacity: root.shown ? 1 : 0;
+        animate y { duration: 220ms; easing: cubic-bezier(0.2, 0.9, 0.3, 1); }
+        animate opacity { duration: 160ms; easing: ease-out; }
+        background: #1c1c1ef2;
+        border-radius: 20px;
+        border-width: 1px;
+        border-color: #ffffff2e;
+
+        VerticalLayout {
+            padding: 12px;
+            spacing: 10px;
+            alignment: start;
+
+            Label {
+                text: "CONTROL CENTER";
+                font-size: 10px;
+                height: 16px;
+            }
+
+            HorizontalLayout {
+                spacing: 10px;
+                Toggle {
+                    glyph: "\u{E701}";
+                    title: "Wi-Fi";
+                    detail: !root.wifi-available ? "No disponible" : root.wifi-on ? (root.network != "" ? root.network : "Activado") : "Desactivado";
+                    on: root.wifi-on;
+                    available: root.wifi-available;
+                    clicked => {
+                        root.toggle-wifi();
+                    }
+                }
+                Toggle {
+                    glyph: "\u{E702}";
+                    title: "Bluetooth";
+                    detail: !root.bt-available ? "No disponible" : root.bt-on ? "Activado" : "Desactivado";
+                    on: root.bt-on;
+                    available: root.bt-available;
+                    clicked => {
+                        root.toggle-bluetooth();
+                    }
+                }
+            }
+
+            if root.has-media: Section {
+                HorizontalLayout {
+                    spacing: 10px;
+                    Rectangle {
+                        width: 40px;
+                        height: 40px;
+                        border-radius: 8px;
+                        clip: true;
+                        background: #ffffff1a;
+                        if root.has-artwork: Image {
+                            width: parent.width;
+                            height: parent.height;
+                            source: root.artwork;
+                            image-fit: cover;
+                        }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        Text {
+                            text: root.track;
+                            color: white;
+                            font-size: 13px;
+                            font-weight: 600;
+                            overflow: elide;
+                        }
+                        Text {
+                            text: root.artist;
+                            color: #ffffff99;
+                            font-size: 11px;
+                            overflow: elide;
+                        }
+                    }
+                    for b[i] in [
+                        { glyph: "\u{E892}", size: 13px },
+                        { glyph: root.playing ? "\u{E769}" : "\u{E768}", size: 16px },
+                        { glyph: "\u{E893}", size: 13px },
+                    ]: Rectangle {
+                        width: 28px;
+                        Text {
+                            text: b.glyph;
+                            font-family: Theme.icons;
+                            font-size: b.size;
+                            color: white;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                if i == 0 {
+                                    root.previous();
+                                } else if i == 1 {
+                                    root.play-pause();
+                                } else {
+                                    root.next();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if root.has-brightness: Section {
+                Text {
+                    text: "Pantalla";
+                    color: white;
+                    font-size: 13px;
+                    font-weight: 600;
+                }
+                Bar {
+                    glyph: "\u{E706}";
+                    value <=> root.brightness;
+                    released => {
+                        root.brightness-released(root.brightness);
+                    }
+                }
+            }
+
+            Section {
+                HorizontalLayout {
+                    Text {
+                        text: "Sonido";
+                        color: white;
+                        font-size: 13px;
+                        font-weight: 600;
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
+                    Text {
+                        text: root.muted ? "Silencio" : round(root.volume * 100) + " %";
+                        color: #ffffff99;
+                        font-size: 11px;
+                        vertical-alignment: center;
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Bar {
+                        glyph: root.muted || root.volume == 0 ? "\u{E74F}" : "\u{E767}";
+                        value <=> root.volume;
+                        moved(v) => {
+                            root.volume-moved(v);
+                        }
+                    }
+                    Rectangle {
+                        width: 30px;
+                        height: 30px;
+                        border-radius: 15px;
+                        background: root.muted ? #ff453a : #ffffff1f;
+                        Text {
+                            text: "\u{E74F}";
+                            font-family: Theme.icons;
+                            font-size: 12px;
+                            color: white;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                root.toggle-mute();
+                            }
+                        }
+                    }
+                }
+            }
+
+            Section {
+                HorizontalLayout {
+                    Text {
+                        text: "Apariencia";
+                        color: white;
+                        font-size: 13px;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
+                    // Segmented Light / Dark.
+                    Rectangle {
+                        width: 132px;
+                        height: 28px;
+                        border-radius: 14px;
+                        background: #ffffff14;
+                        Rectangle {
+                            x: root.dark ? parent.width / 2 + 2px : 2px;
+                            y: 2px;
+                            width: parent.width / 2 - 4px;
+                            height: parent.height - 4px;
+                            border-radius: self.height / 2;
+                            background: #ffffff33;
+                            animate x { duration: 180ms; easing: ease-out; }
+                        }
+                        for m[i] in ["Claro", "Oscuro"]: Text {
+                            x: i * parent.width / 2;
+                            width: parent.width / 2;
+                            height: parent.height;
+                            text: m;
+                            color: white;
+                            font-size: 11px;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                root.set-dark(self.mouse-x > self.width / 2);
+                            }
+                        }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 10px;
+                Link {
+                    glyph: "\u{E72E}";
+                    text: "Bloquear";
+                    clicked => {
+                        root.lock();
+                    }
+                }
+                Link {
+                    glyph: "\u{E790}";
+                    text: "Familiar";
+                    clicked => {
+                        root.open-familiar-settings();
+                    }
+                }
+            }
+            Link {
+                glyph: "\u{E713}";
+                text: "Configuración del sistema";
+                clicked => {
+                    root.open-system-settings();
+                }
+            }
+        }
+    }
+}

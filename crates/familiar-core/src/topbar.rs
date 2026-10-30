@@ -2,6 +2,8 @@
 
 use std::cell::RefCell;
 
+use familiar_signal::raster::{self, DotStyle, Rgba};
+use familiar_signal::{Matrix, font};
 use familiar_sys::appbar::{AppBar, AppBarEvent, Edge};
 use familiar_sys::power::Battery;
 use familiar_sys::privacy::PrivacyState;
@@ -21,12 +23,15 @@ pub struct TopBar {
 impl TopBar {
     pub fn new() -> Result<Self, slint::PlatformError> {
         let ui = TopBarWindow::new()?;
-        ui.on_logo_clicked(|| with_app(|a| a.launcher.toggle(a)));
+        // The mark works like the Apple menu: it opens the settings.
+        ui.on_logo_clicked(|| with_app(|a| a.settings.toggle(a)));
         ui.on_app_clicked(|| with_app(|a| a.launcher.toggle(a)));
         ui.on_clock_clicked(|| open("ms-actioncenter:"));
-        ui.on_battery_clicked(|| open("ms-settings:batterysaver"));
+        // Status items open the Control Center, as on macOS.
+        ui.on_battery_clicked(|| with_app(|a| a.control_center.toggle(a)));
         ui.on_layout_clicked(|| open("ms-settings:regionlanguage"));
         ui.on_privacy_clicked(|| open("ms-settings:privacy-microphone"));
+        ui.on_control_center_clicked(|| with_app(|a| a.control_center.toggle(a)));
         Ok(Self { ui, appbar: RefCell::new(None), hwnd: Default::default() })
     }
 
@@ -106,8 +111,33 @@ impl TopBar {
     }
 
     pub fn refresh_clock(&self, app: &App) {
-        self.ui.set_clock(clock::time_string().into());
-        self.ui.set_date(clock::date_string(&app.cfg.borrow().top_bar.date_format).into());
+        let text = clock::time_string();
+        self.ui.set_clock(text.as_str().into());
+        self.ui.set_date(clock::date_string(&app.cfg.borrow().top_bar.date_format).to_uppercase().into());
+
+        // The user's format decides 12 h vs 24 h; the digits are drawn as a
+        // dot-matrix image, the "AM"/"PM" suffix as a small label.
+        let now = clock::now();
+        let twelve = text.chars().any(char::is_alphabetic);
+        let (digits, meridiem) = if twelve {
+            let h = match now.hour % 12 {
+                0 => 12,
+                h => h,
+            };
+            (format!("{h}:{:02}", now.minute), if now.hour < 12 { "AM" } else { "PM" })
+        } else {
+            (format!("{:02}:{:02}", now.hour, now.minute), "")
+        };
+        let scale = app.monitor.get().scale;
+        let pitch = (2.0 * scale).round().max(2.0) as u32;
+        let mut m = Matrix::new(font::text_width(&digits), font::GLYPH_H);
+        m.draw_text(&digits, 0, 0, 1.0);
+        let style = DotStyle { pitch, radius: 0.42, on: Rgba(255, 255, 255, 255), off: Rgba(255, 255, 255, 34) };
+        let (w, h, px) = raster::render(&m, &style);
+        self.ui.set_clock_dots(ui::image_from_rgba(w, h, &px));
+        self.ui.set_clock_width(w as f32 / scale);
+        self.ui.set_clock_height(h as f32 / scale);
+        self.ui.set_meridiem(meridiem.into());
     }
 
     pub fn set_battery(&self, b: Battery) {

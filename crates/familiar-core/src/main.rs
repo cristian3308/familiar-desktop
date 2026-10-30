@@ -13,6 +13,8 @@ mod app;
 #[cfg(windows)]
 mod audio_pipe;
 #[cfg(windows)]
+mod controlcenter;
+#[cfg(windows)]
 mod dock;
 #[cfg(windows)]
 mod fx;
@@ -22,8 +24,12 @@ mod indexer;
 mod island;
 #[cfg(windows)]
 mod launcher;
+#[cfg(windows)]
+mod lock;
 #[cfg(all(windows, not(feature = "winit")))]
 mod platform;
+#[cfg(windows)]
+mod settings;
 #[cfg(windows)]
 mod topbar;
 #[cfg(windows)]

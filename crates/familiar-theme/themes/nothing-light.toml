@@ -1,0 +1,25 @@
+[meta]
+name = "Nothing Light"
+author = "Familiar Core"
+
+[colors]
+background_tint = "#F2F2F2EB"
+accent = "#FF2B2B"
+text_primary = "#000000"
+text_secondary = "#6E6E73"
+border_glow = "#0000001F"
+island_background = "#000000FF"
+dot_off = "#0000000F"
+bar_tint = "#FFFFFF66"
+
+[metrics]
+dock_icon_size = 42
+dock_magnification = 1.55
+corner_radius = 18
+top_bar_height = 32
+blur_type = "None"
+
+[cursor]
+custom_scheme = false
+ripple_on_click = true
+shake_to_find = true

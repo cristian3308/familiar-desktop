@@ -1,0 +1,766 @@
+import { Theme } from "theme.slint";
+
+// macOS-style controls, drawn by hand so they match the rest of the shell.
+
+// One palette in the theme picker, shown as a paint-chip card.
+export struct ThemeCard {
+    name: string,
+    code: string,
+    bg: color,
+    accent: color,
+    ink: color,
+}
+
+component Switch inherits Rectangle {
+    in-out property <bool> on;
+    callback toggled();
+    width: 40px;
+    height: 24px;
+    border-radius: 12px;
+    background: root.on ? #30d158 : #ffffff26;
+    animate background { duration: 160ms; }
+    Rectangle {
+        x: root.on ? root.width - self.width - 2px : 2px;
+        y: 2px;
+        width: 20px;
+        height: 20px;
+        border-radius: 10px;
+        background: white;
+        drop-shadow-blur: 3px;
+        drop-shadow-color: #00000059;
+        animate x { duration: 180ms; easing: cubic-bezier(0.3, 1.3, 0.5, 1); }
+    }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.on = !root.on;
+            root.toggled();
+        }
+    }
+}
+
+component Slider inherits Rectangle {
+    in property <float> minimum: 0;
+    in property <float> maximum: 1;
+    in-out property <float> value;
+    // Fired when the knob is released, so files are written once per drag.
+    callback committed();
+    height: 24px;
+    property <float> t: (root.value - root.minimum) / (root.maximum - root.minimum);
+    Rectangle {
+        y: (parent.height - 4px) / 2;
+        height: 4px;
+        border-radius: 2px;
+        background: #ffffff26;
+        Rectangle {
+            x: 0;
+            width: parent.width * root.t;
+            border-radius: 2px;
+            background: Theme.accent;
+        }
+    }
+    Rectangle {
+        x: (root.width - self.width) * root.t;
+        y: (parent.height - self.height) / 2;
+        width: 20px;
+        height: 20px;
+        border-radius: 10px;
+        background: white;
+        drop-shadow-blur: 4px;
+        drop-shadow-color: #00000066;
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        function set(x: length) {
+            root.value = root.minimum + clamp(x / root.width, 0, 1) * (root.maximum - root.minimum);
+        }
+        pointer-event(ev) => {
+            if ev.kind == PointerEventKind.down {
+                self.set(self.mouse-x);
+            }
+            if ev.kind == PointerEventKind.up {
+                root.committed();
+            }
+        }
+        moved => {
+            if self.pressed {
+                self.set(self.mouse-x);
+            }
+        }
+    }
+}
+
+component Button inherits Rectangle {
+    in property <string> text;
+    in property <bool> primary;
+    in property <bool> danger;
+    callback clicked();
+    height: 30px;
+    width: label.preferred-width + 28px;
+    border-radius: 8px;
+    background: root.primary ? (touch.pressed ? Theme.accent.darker(0.2) : Theme.accent) : (touch.has-hover ? #ffffff26 : #ffffff1a);
+    animate background { duration: 100ms; }
+    label := Text {
+        text: root.text;
+        color: root.danger ? #ff453a : white;
+        font-size: 13px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+// A grouped list like macOS System Settings.
+component Group inherits Rectangle {
+    background: #ffffff0d;
+    border-radius: 12px;
+    border-width: 1px;
+    border-color: #ffffff12;
+    VerticalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        @children
+    }
+}
+
+component Row inherits Rectangle {
+    in property <string> title;
+    in property <string> detail;
+    in property <bool> last;
+    min-height: 48px;
+    HorizontalLayout {
+        spacing: 12px;
+        VerticalLayout {
+            alignment: center;
+            Text {
+                text: root.title;
+                color: white;
+                font-size: 13px;
+            }
+            if root.detail != "": Text {
+                text: root.detail;
+                color: #ffffff80;
+                font-size: 11px;
+                wrap: word-wrap;
+            }
+        }
+        HorizontalLayout {
+            horizontal-stretch: 0;
+            alignment: end;
+            @children
+        }
+    }
+    if !root.last: Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: #ffffff12;
+    }
+}
+
+component SectionTitle inherits Text {
+    color: #ffffff80;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+component SidebarItem inherits Rectangle {
+    in property <string> glyph;
+    in property <string> label;
+    in property <color> tint;
+    in property <bool> selected;
+    callback clicked();
+    height: 32px;
+    border-radius: 7px;
+    background: root.selected ? Theme.accent : (touch.has-hover ? #ffffff14 : transparent);
+    HorizontalLayout {
+        padding-left: 8px;
+        spacing: 10px;
+        Rectangle {
+            y: 5px;
+            width: 22px;
+            height: 22px;
+            border-radius: 6px;
+            background: root.tint;
+            Text {
+                text: root.glyph;
+                font-family: Theme.icons;
+                font-size: 12px;
+                color: white;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        Text {
+            text: root.label;
+            color: white;
+            font-size: 13px;
+            font-weight: root.selected ? 600 : 400;
+            vertical-alignment: center;
+        }
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+export component SettingsWindow inherits Window {
+    title: "Ajustes de Familiar";
+    no-frame: true;
+    background: transparent;
+    default-font-family: Theme.font;
+
+    in-out property <int> section;
+
+    in property <[ThemeCard]> themes;
+    in-out property <int> theme-index;
+    in property <[color]> accents: [#ff2b2b, #ff9f0a, #ffd60a, #30d158, #64d2ff, #0a84ff, #bf5af2, #ff375f, #ffffff];
+    in-out property <color> accent;
+    in-out property <float> bar-opacity;
+
+    in-out property <float> icon-size;
+    in-out property <float> magnification;
+    in-out property <bool> custom-icons;
+    in-out property <bool> show-running;
+
+    in-out property <bool> w-calendar;
+    in-out property <bool> w-weather;
+    in-out property <bool> w-system;
+    in-out property <bool> w-signal;
+    in-out property <bool> w-clock;
+    in-out property <bool> w-visualizer;
+    in-out property <bool> w-analog;
+    in-out property <bool> w-music;
+    in-out property <string> city;
+
+    in-out property <bool> hide-taskbar;
+    in-out property <bool> autostart;
+    in-out property <bool> lock-on-start;
+    in-out property <bool> window-animations;
+    in-out property <bool> genie-effect;
+    in property <bool> needs-restart;
+
+    // Something editable changed; Rust reads every property and applies.
+    callback changed();
+    callback theme-chosen(int);
+    callback city-committed(string);
+    callback restart();
+    callback quit-familiar();
+    callback close-window();
+    callback drag-moved(length, length);
+
+    Rectangle {
+        background: #1c1c1ef7;
+        border-radius: 14px;
+        border-width: 1px;
+        border-color: #ffffff26;
+        clip: true;
+
+        HorizontalLayout {
+            // ---- sidebar ----
+            Rectangle {
+                width: 210px;
+                background: #2c2c2e99;
+                VerticalLayout {
+                    padding: 12px;
+                    padding-top: 14px;
+                    spacing: 4px;
+                    alignment: start;
+                    // Traffic lights; the red one closes.
+                    HorizontalLayout {
+                        spacing: 8px;
+                        height: 22px;
+                        alignment: start;
+                        for c[i] in [#ff5f57, #febc2e, #28c840]: Rectangle {
+                            y: 5px;
+                            width: 12px;
+                            height: 12px;
+                            border-radius: 6px;
+                            background: c;
+                            if i == 0: TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => {
+                                    root.close-window();
+                                }
+                            }
+                        }
+                    }
+                    Rectangle {
+                        height: 14px;
+                    }
+                    SidebarItem {
+                        glyph: "\u{E790}";
+                        label: "Apariencia";
+                        tint: #0a84ff;
+                        selected: root.section == 0;
+                        clicked => {
+                            root.section = 0;
+                        }
+                    }
+                    SidebarItem {
+                        glyph: "\u{E7F4}";
+                        label: "Dock";
+                        tint: #8e8e93;
+                        selected: root.section == 1;
+                        clicked => {
+                            root.section = 1;
+                        }
+                    }
+                    SidebarItem {
+                        glyph: "\u{E8FD}";
+                        label: "Widgets";
+                        tint: #bf5af2;
+                        selected: root.section == 2;
+                        clicked => {
+                            root.section = 2;
+                        }
+                    }
+                    SidebarItem {
+                        glyph: "\u{E713}";
+                        label: "General";
+                        tint: #636366;
+                        selected: root.section == 3;
+                        clicked => {
+                            root.section = 3;
+                        }
+                    }
+                }
+            }
+
+            // ---- content ----
+            VerticalLayout {
+                padding: 22px;
+                padding-top: 16px;
+                spacing: 14px;
+                alignment: start;
+
+                Text {
+                    text: root.section == 0 ? "Apariencia" : root.section == 1 ? "Dock" : root.section == 2 ? "Widgets" : "General";
+                    color: white;
+                    font-family: Theme.display;
+                    font-size: 20px;
+                    font-weight: 700;
+                }
+
+                if root.section == 0: VerticalLayout {
+                    spacing: 8px;
+                    SectionTitle {
+                        text: "TEMA";
+                    }
+                    // Paint-chip cards, four per row.
+                    Rectangle {
+                        property <length> card-w: (self.width - 3 * 10px) / 4;
+                        height: ceil(root.themes.length / 4) * 112px;
+                        for t[i] in root.themes: Rectangle {
+                            property <bool> chosen: i == root.theme-index;
+                            x: mod(i, 4) * (parent.card-w + 10px);
+                            y: floor(i / 4) * 112px + (chosen ? 0px : 4px);
+                            width: parent.card-w;
+                            height: 100px;
+                            border-radius: 12px;
+                            background: #f5f5f0;
+                            border-width: chosen ? 2px : 1px;
+                            border-color: chosen ? Theme.accent : #ffffff26;
+                            clip: true;
+                            animate y { duration: 160ms; easing: ease-out; }
+                            // Colour swatch.
+                            Rectangle {
+                                y: 0;
+                                height: 58px;
+                                background: t.bg;
+                                Rectangle {
+                                    x: parent.width - 20px;
+                                    y: 10px;
+                                    width: 10px;
+                                    height: 10px;
+                                    border-radius: 5px;
+                                    background: t.accent;
+                                }
+                                Text {
+                                    x: 10px;
+                                    y: 32px;
+                                    text: "Aa";
+                                    color: t.ink;
+                                    font-family: Theme.display;
+                                    font-size: 16px;
+                                    font-weight: 700;
+                                }
+                            }
+                            Text {
+                                x: 10px;
+                                y: 63px;
+                                text: t.name;
+                                color: #1c1c1e;
+                                font-size: 12px;
+                                font-weight: 700;
+                                overflow: elide;
+                                width: parent.width - 20px;
+                            }
+                            Text {
+                                x: 10px;
+                                y: 80px;
+                                text: t.code;
+                                color: #8e8e93;
+                                font-family: Theme.mono;
+                                font-size: 9px;
+                                letter-spacing: 1px;
+                            }
+                            TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => {
+                                    root.theme-index = i;
+                                    root.theme-chosen(i);
+                                }
+                            }
+                        }
+                    }
+                    SectionTitle {
+                        text: "COLOR DE ACENTO";
+                    }
+                    Group {
+                        Rectangle {
+                            height: 56px;
+                            HorizontalLayout {
+                                spacing: 12px;
+                                alignment: start;
+                                for c in root.accents: Rectangle {
+                                    y: 16px;
+                                    width: 24px;
+                                    height: 24px;
+                                    border-radius: 12px;
+                                    background: c;
+                                    border-width: root.accent == c ? 3px : 0px;
+                                    border-color: #ffffffcc;
+                                    TouchArea {
+                                        mouse-cursor: pointer;
+                                        clicked => {
+                                            root.accent = c;
+                                            root.changed();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    SectionTitle {
+                        text: "BARRA SUPERIOR";
+                    }
+                    Group {
+                        Row {
+                            title: "Opacidad";
+                            detail: round(root.bar-opacity * 100) + " %";
+                            last: true;
+                            Slider {
+                                width: 220px;
+                                minimum: 0;
+                                maximum: 1;
+                                value <=> root.bar-opacity;
+                                committed => {
+                                    root.changed();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if root.section == 1: VerticalLayout {
+                    spacing: 8px;
+                    Group {
+                        Row {
+                            title: "Tamaño de los iconos";
+                            detail: round(root.icon-size) + " px";
+                            Slider {
+                                width: 220px;
+                                minimum: 32;
+                                maximum: 72;
+                                value <=> root.icon-size;
+                                committed => {
+                                    root.changed();
+                                }
+                            }
+                        }
+                        Row {
+                            title: "Ampliación";
+                            detail: round(root.magnification * 100) / 100 + "×";
+                            Slider {
+                                width: 220px;
+                                minimum: 1;
+                                maximum: 2;
+                                value <=> root.magnification;
+                                committed => {
+                                    root.changed();
+                                }
+                            }
+                        }
+                        Row {
+                            title: "Iconos estilo macOS";
+                            detail: "Explorador, Configuración y Terminal";
+                            Switch {
+                                y: 12px;
+                                on <=> root.custom-icons;
+                                toggled => {
+                                    root.changed();
+                                }
+                            }
+                        }
+                        Row {
+                            title: "Mostrar apps abiertas";
+                            last: true;
+                            Switch {
+                                y: 12px;
+                                on <=> root.show-running;
+                                toggled => {
+                                    root.changed();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if root.section == 2: VerticalLayout {
+                    spacing: 8px;
+                    Group {
+                        Row {
+                            title: "Calendario";
+                            Switch {
+                                y: 12px;
+                                on <=> root.w-calendar;
+                                toggled => {
+                                    root.changed();
+                                }
+                            }
+                        }
+                        Row {
+                            title: "Clima";
+                            detail: "Usa internet (Open-Meteo)";
+                            Switch {
+                                y: 12px;
+                                on <=> root.w-weather;
+                                toggled => {
+                                    root.changed();
+                                }
+                            }
+                        }
+                        Row {
+                            title: "Sistema";
+                            detail: "CPU, memoria y batería";
+                            Switch {
+                                y: 12px;
+                                on <=> root.w-system;
+                                toggled => {
+                                    root.changed();
+                                }
+                            }
+                        }
+                        Row {
+                            title: "SIGNAL/01";
+                            detail: "Visualizador de audio de puntos";
+                            Switch {
+                                y: 12px;
+                                on <=> root.w-signal;
+                                toggled => {
+                                    root.changed();
+                                }
+                            }
+                        }
+                        Row {
+                            title: "Reloj de puntos";
+                            Switch {
+                                y: 12px;
+                                on <=> root.w-clock;
+                                toggled => {
+                                    root.changed();
+                                }
+                            }
+                        }
+                        Row {
+                            title: "Visualizador";
+                            detail: "Seis escenas; toca el widget para cambiar";
+                            Switch {
+                                y: 12px;
+                                on <=> root.w-visualizer;
+                                toggled => {
+                                    root.changed();
+                                }
+                            }
+                        }
+                        Row {
+                            title: "Reloj analógico";
+                            Switch {
+                                y: 12px;
+                                on <=> root.w-analog;
+                                toggled => {
+                                    root.changed();
+                                }
+                            }
+                        }
+                        Row {
+                            title: "Música";
+                            detail: "Carátula y controles";
+                            last: true;
+                            Switch {
+                                y: 12px;
+                                on <=> root.w-music;
+                                toggled => {
+                                    root.changed();
+                                }
+                            }
+                        }
+                    }
+                    SectionTitle {
+                        text: "CIUDAD DEL CLIMA";
+                    }
+                    Rectangle {
+                        height: 36px;
+                        border-radius: 8px;
+                        background: #ffffff14;
+                        border-width: 1px;
+                        border-color: city-input.has-focus ? Theme.accent : #ffffff1a;
+                        city-input := TextInput {
+                            x: 12px;
+                            width: parent.width - 24px;
+                            text <=> root.city;
+                            color: white;
+                            font-size: 13px;
+                            vertical-alignment: center;
+                            single-line: true;
+                            accepted => {
+                                root.city-committed(self.text);
+                            }
+                        }
+                    }
+                    Text {
+                        text: "Pulsa Intro para guardar la ciudad.";
+                        color: #ffffff66;
+                        font-size: 11px;
+                    }
+                }
+
+                if root.section == 3: VerticalLayout {
+                    spacing: 8px;
+                    Group {
+                        Row {
+                            title: "Ocultar la barra de tareas de Windows";
+                            Switch {
+                                y: 12px;
+                                on <=> root.hide-taskbar;
+                                toggled => {
+                                    root.changed();
+                                }
+                            }
+                        }
+                        Row {
+                            title: "Animación al abrir y minimizar";
+                            detail: "Las ventanas salen del Dock y vuelven a él";
+                            Switch {
+                                y: 12px;
+                                on <=> root.window-animations;
+                                toggled => {
+                                    root.changed();
+                                }
+                            }
+                        }
+                        Row {
+                            title: "Efecto genio al minimizar";
+                            detail: "Apagado: la ventana se encoge suavemente";
+                            Switch {
+                                y: 12px;
+                                on <=> root.genie-effect;
+                                toggled => {
+                                    root.changed();
+                                }
+                            }
+                        }
+                        Row {
+                            title: "Pantalla de bienvenida al iniciar";
+                            detail: "Splash y pantalla de bloqueo (solo visual)";
+                            Switch {
+                                y: 12px;
+                                on <=> root.lock-on-start;
+                                toggled => {
+                                    root.changed();
+                                }
+                            }
+                        }
+                        Row {
+                            title: "Abrir al iniciar Windows";
+                            last: true;
+                            Switch {
+                                y: 12px;
+                                on <=> root.autostart;
+                                toggled => {
+                                    root.changed();
+                                }
+                            }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 10px;
+                        alignment: start;
+                        Button {
+                            text: "Reiniciar Familiar";
+                            clicked => {
+                                root.restart();
+                            }
+                        }
+                        Button {
+                            text: "Salir de Familiar";
+                            danger: true;
+                            clicked => {
+                                root.quit-familiar();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if root.needs-restart: Rectangle {
+            x: 210px + 22px;
+            y: parent.height - self.height - 18px;
+            width: parent.width - 210px - 44px;
+            height: 48px;
+            border-radius: 12px;
+            background: Theme.accent.with-alpha(0.18);
+            border-width: 1px;
+            border-color: Theme.accent.with-alpha(0.5);
+            HorizontalLayout {
+                padding-left: 14px;
+                padding-right: 9px;
+                spacing: 10px;
+                Text {
+                    text: "Algunos cambios se aplican al reiniciar.";
+                    color: white;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                }
+                Button {
+                    y: 9px;
+                    text: "Reiniciar ahora";
+                    primary: true;
+                    clicked => {
+                        root.restart();
+                    }
+                }
+            }
+        }
+    }
+
+    // Drag the window by its top strip (right of the traffic lights).
+    TouchArea {
+        x: 80px;
+        width: parent.width - 80px;
+        height: 44px;
+        moved => {
+            root.drag-moved(self.mouse-x - self.pressed-x, self.mouse-y - self.pressed-y);
+        }
+    }
+}

@@ -65,11 +65,14 @@ where
     g.set_text_secondary(color(t.colors.text_secondary));
     g.set_glow(color(t.colors.border_glow));
     g.set_island(color(t.colors.island_background));
+    g.set_bar_tint(color(t.colors.bar_tint));
     g.set_radius(t.metrics.corner_radius as f32);
     g.set_bar_height(t.metrics.top_bar_height as f32);
     // Troubleshooting override for machines without Segoe UI (e.g. Wine).
     if let Ok(font) = std::env::var("FAMILIAR_FONT") {
         g.set_font(font.as_str().into());
+        g.set_display(font.as_str().into());
+        g.set_mono(font.as_str().into());
         g.set_icons(font.as_str().into());
     }
 }

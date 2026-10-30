@@ -1025,6 +1025,8 @@ dependencies = [
  "familiar-theme",
  "image",
  "log",
+ "serde",
+ "serde_json",
  "windows",
  "windows-core",
 ]

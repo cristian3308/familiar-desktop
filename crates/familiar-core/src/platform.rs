@@ -306,6 +306,7 @@ impl LayeredWindow {
                 dispatch(WindowEvent::PointerExited);
             }
             WM_LBUTTONDOWN | WM_LBUTTONDBLCLK | WM_RBUTTONDOWN | WM_MBUTTONDOWN => {
+                log::trace!("pointer down {msg:#x} {:?} at {:?}", self.hwnd, self.logical(lp));
                 unsafe { SetCapture(self.hwnd) };
                 let button = match msg {
                     WM_RBUTTONDOWN => PointerEventButton::Right,
@@ -315,6 +316,7 @@ impl LayeredWindow {
                 dispatch(WindowEvent::PointerPressed { position: self.logical(lp), button });
             }
             WM_LBUTTONUP | WM_RBUTTONUP | WM_MBUTTONUP => {
+                log::trace!("pointer up {msg:#x} {:?} at {:?}", self.hwnd, self.logical(lp));
                 unsafe {
                     let _ = ReleaseCapture();
                 }

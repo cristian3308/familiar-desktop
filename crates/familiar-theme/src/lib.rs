@@ -25,6 +25,11 @@ pub const BUILTIN: &[(&str, &str)] = &[
     ("ember-dark", include_str!("../themes/ember-dark.toml")),
     ("glacier-light", include_str!("../themes/glacier-light.toml")),
     ("mono-signal", include_str!("../themes/mono-signal.toml")),
+    ("nothing-dark", include_str!("../themes/nothing-dark.toml")),
+    ("nothing-light", include_str!("../themes/nothing-light.toml")),
+    ("graphite", include_str!("../themes/graphite.toml")),
+    ("wine", include_str!("../themes/wine.toml")),
+    ("paper", include_str!("../themes/paper.toml")),
 ];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -53,6 +58,9 @@ pub struct Colors {
     pub border_glow: Color,
     pub island_background: Color,
     pub dot_off: Color,
+    /// Top bar fill; mostly transparent so the wallpaper shows through,
+    /// like the macOS menu bar.
+    pub bar_tint: Color,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -114,6 +122,7 @@ impl Default for Colors {
             border_glow: c("#FFFFFF22"),
             island_background: c("#000000F2"),
             dot_off: c("#FFFFFF14"),
+            bar_tint: c("#00000059"),
         }
     }
 }

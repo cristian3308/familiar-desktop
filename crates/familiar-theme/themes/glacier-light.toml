@@ -10,6 +10,7 @@ text_secondary = "#6E6E73"
 border_glow = "#00000018"
 island_background = "#000000F2"
 dot_off = "#00000012"
+bar_tint = "#FFFFFF73"
 
 [metrics]
 dock_icon_size = 52

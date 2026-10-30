@@ -1,0 +1,25 @@
+[meta]
+name = "Wine"
+author = "Familiar Core"
+
+[colors]
+background_tint = "#3A0B12EB"
+accent = "#FF4D5E"
+text_primary = "#FFF5F6"
+text_secondary = "#D9A7AE"
+border_glow = "#FFFFFF2A"
+island_background = "#000000FF"
+dot_off = "#FFFFFF14"
+bar_tint = "#4A0E1866"
+
+[metrics]
+dock_icon_size = 42
+dock_magnification = 1.55
+corner_radius = 18
+top_bar_height = 32
+blur_type = "None"
+
+[cursor]
+custom_scheme = false
+ripple_on_click = true
+shake_to_find = true

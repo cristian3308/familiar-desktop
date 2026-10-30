@@ -1,0 +1,207 @@
+import { Theme, Label, Dot } from "theme.slint";
+
+// Splash + lock face. Purely visual: it does not replace the Windows
+// password lock (Win+L), and says so.
+export component LockWindow inherits Window {
+    title: "Familiar Lock";
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+    default-font-family: Theme.font;
+
+    // 0 = splash (logo), 1 = lock face.
+    in property <int> phase;
+    // Flipped one frame after showing so entry animations run.
+    in property <bool> appeared;
+    // Unlock animation: slides up and fades out.
+    in property <bool> leaving;
+    in property <image> clock-dots;
+    in property <length> clock-width;
+    in property <length> clock-height;
+    in property <string> date;
+    in property <int> battery: -1;
+    in property <bool> charging;
+    in property <bool> has-media;
+    in property <bool> playing;
+    in property <string> track;
+    in property <string> artist;
+    in property <image> artwork;
+    in property <bool> has-artwork;
+
+    callback unlock();
+
+    keys := FocusScope {
+        key-pressed(event) => {
+            root.unlock();
+            accept
+        }
+
+        Rectangle {
+            y: root.leaving ? -root.height * 0.08 : 0px;
+            opacity: root.leaving ? 0 : (root.appeared ? 1 : 0);
+            animate y { duration: 380ms; easing: cubic-bezier(0.5, 0, 0.75, 0); }
+            animate opacity { duration: 320ms; easing: ease-in-out; }
+            background: @linear-gradient(180deg, #0b0b0d 0%, #000000 100%);
+
+            // Faint dot field, the Nothing texture.
+            for i in 120: Rectangle {
+                x: mod(i, 15) * (root.width / 15) + root.width / 30;
+                y: floor(i / 15) * (root.height / 8) + root.height / 16;
+                width: 3px;
+                height: 3px;
+                border-radius: 1.5px;
+                background: #ffffff10;
+            }
+
+            // ---- splash ----
+            Rectangle {
+                opacity: root.phase == 0 ? 1 : 0;
+                animate opacity { duration: 300ms; }
+                for i in 9: Rectangle {
+                    property <length> step: 26px;
+                    x: (root.width - 2 * self.step - 14px) / 2 + mod(i, 3) * self.step;
+                    y: (root.height - 2 * self.step - 14px) / 2 - 20px + floor(i / 3) * self.step;
+                    width: 14px;
+                    height: 14px;
+                    border-radius: 7px;
+                    background: i == 4 ? Theme.accent : white;
+                    opacity: root.appeared ? 1 : 0;
+                    animate opacity { duration: 180ms; delay: i * 55ms; }
+                }
+                Label {
+                    y: root.height / 2 + 60px;
+                    width: root.width;
+                    horizontal-alignment: center;
+                    text: "FAMILIAR";
+                    font-size: 13px;
+                    letter-spacing: 6px;
+                    color: #ffffffb3;
+                    opacity: root.appeared ? 1 : 0;
+                    animate opacity { duration: 300ms; delay: 450ms; }
+                }
+            }
+
+            // ---- lock face ----
+            Rectangle {
+                opacity: root.phase == 1 ? 1 : 0;
+                animate opacity { duration: 400ms; }
+                VerticalLayout {
+                    y: root.height * 0.14;
+                    height: root.height * 0.6;
+                    spacing: 18px;
+                    alignment: start;
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: 8px;
+                        Text {
+                            text: "\u{E72E}";
+                            font-family: Theme.icons;
+                            font-size: 16px;
+                            color: #ffffffcc;
+                        }
+                    }
+                    Text {
+                        text: root.date;
+                        color: white;
+                        font-family: Theme.display;
+                        font-size: 22px;
+                        font-weight: 600;
+                        horizontal-alignment: center;
+                    }
+                    HorizontalLayout {
+                        alignment: center;
+                        Image {
+                            width: root.clock-width;
+                            height: root.clock-height;
+                            source: root.clock-dots;
+                        }
+                    }
+                    if root.has-media: HorizontalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 360px;
+                            height: 72px;
+                            border-radius: 20px;
+                            background: #ffffff14;
+                            border-width: 1px;
+                            border-color: #ffffff1f;
+                            HorizontalLayout {
+                                padding: 12px;
+                                spacing: 12px;
+                                Rectangle {
+                                    width: 48px;
+                                    height: 48px;
+                                    border-radius: 10px;
+                                    clip: true;
+                                    background: #ffffff1a;
+                                    if root.has-artwork: Image {
+                                        width: parent.width;
+                                        height: parent.height;
+                                        source: root.artwork;
+                                        image-fit: cover;
+                                    }
+                                }
+                                VerticalLayout {
+                                    alignment: center;
+                                    Text {
+                                        text: root.track;
+                                        color: white;
+                                        font-size: 14px;
+                                        font-weight: 600;
+                                        overflow: elide;
+                                    }
+                                    Text {
+                                        text: root.artist;
+                                        color: #ffffff99;
+                                        font-size: 12px;
+                                        overflow: elide;
+                                    }
+                                }
+                                Dot {
+                                    size: 8px;
+                                    y: 20px;
+                                    background: root.playing ? Theme.accent : #ffffff40;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                VerticalLayout {
+                    y: root.height - 120px;
+                    height: 90px;
+                    spacing: 8px;
+                    Text {
+                        text: "\u{E70E}";
+                        font-family: Theme.icons;
+                        font-size: 14px;
+                        color: #ffffffb3;
+                        horizontal-alignment: center;
+                    }
+                    Text {
+                        text: "Haz clic o pulsa una tecla para entrar";
+                        color: white;
+                        font-size: 14px;
+                        horizontal-alignment: center;
+                    }
+                    Label {
+                        width: root.width;
+                        horizontal-alignment: center;
+                        text: (root.battery >= 0 ? (root.charging ? "CARGANDO · " : "BATERÍA · ") + root.battery + "%   ·   " : "") + "WIN+L BLOQUEA CON CONTRASEÑA";
+                        font-size: 10px;
+                    }
+                }
+            }
+
+            TouchArea {
+                clicked => {
+                    root.unlock();
+                }
+            }
+        }
+    }
+
+    public function focus-keys() {
+        keys.focus();
+    }
+}

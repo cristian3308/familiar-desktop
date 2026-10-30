@@ -8,6 +8,7 @@
 pub mod font;
 pub mod matrix;
 pub mod raster;
+pub mod scenes;
 pub mod spectrum;
 
 pub use matrix::Matrix;

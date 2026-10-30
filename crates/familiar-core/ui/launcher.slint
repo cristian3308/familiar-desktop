@@ -1,4 +1,4 @@
-import { Theme } from "theme.slint";
+import { Theme, Label, Dot } from "theme.slint";
 
 export struct LauncherItem {
     icon: image,
@@ -16,6 +16,9 @@ export component LauncherWindow inherits Window {
     in property <[LauncherItem]> items;
     in-out property <int> selected;
     in-out property <string> query;
+    // Set to false right before showing and to true on the next frame, so the
+    // card fades and slides in.
+    in property <bool> shown: true;
 
     callback query-changed(string);
     callback activate(int);
@@ -47,7 +50,11 @@ export component LauncherWindow inherits Window {
             reject
         }
 
-        Rectangle {
+        card := Rectangle {
+            y: root.shown ? 0px : 14px;
+            opacity: root.shown ? 1 : 0;
+            animate y { duration: 260ms; easing: cubic-bezier(0.2, 0.9, 0.3, 1); }
+            animate opacity { duration: 180ms; easing: ease-out; }
             background: Theme.tint;
             border-radius: Theme.radius;
             border-width: 1px;
@@ -55,23 +62,31 @@ export component LauncherWindow inherits Window {
 
             VerticalLayout {
                 padding: 18px;
-                spacing: 10px;
-                alignment: start;
+                padding-top: 16px;
+                spacing: 8px;
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    height: 14px;
+                    Dot {
+                        size: 6px;
+                        y: 4px;
+                        background: Theme.accent;
+                    }
+                    Label {
+                        text: "BUSCAR";
+                        font-size: 10px;
+                    }
+                }
 
                 HorizontalLayout {
                     spacing: 12px;
-                    height: 36px;
-                    Text {
-                        text: "\u{E721}";
-                        font-family: Theme.icons;
-                        font-size: 18px;
-                        color: Theme.text-secondary;
-                        vertical-alignment: center;
-                    }
+                    height: 44px;
                     Rectangle {
                         search := TextInput {
                             text <=> root.query;
-                            font-size: 20px;
+                            font-family: Theme.display;
+                            font-size: 26px;
                             color: Theme.text;
                             vertical-alignment: center;
                             single-line: true;
@@ -80,68 +95,115 @@ export component LauncherWindow inherits Window {
                             }
                         }
                         if root.query == "": Text {
-                            text: "Buscar apps";
-                            font-size: 20px;
-                            color: Theme.text-secondary;
+                            text: "Abrir una app…";
+                            font-family: Theme.display;
+                            font-size: 26px;
+                            color: Theme.text-secondary.with-alpha(0.7);
                             vertical-alignment: center;
                             x: 0;
                         }
                     }
                 }
+
+                // Dotted divider.
                 Rectangle {
-                    height: 1px;
-                    background: Theme.glow;
+                    height: 2px;
+                    for i in 160: Rectangle {
+                        x: i * 6px;
+                        width: 2px;
+                        height: 2px;
+                        border-radius: 1px;
+                        background: Theme.glow;
+                    }
+                    clip: true;
                 }
 
-                for item[i] in root.items: Rectangle {
-                    height: 46px;
-                    border-radius: 10px;
-                    background: i == root.selected ? Theme.accent.with-alpha(0.22) : transparent;
-                    HorizontalLayout {
-                        padding-left: 10px;
-                        padding-right: 10px;
-                        spacing: 12px;
-                        Image {
-                            width: 30px;
-                            height: 30px;
-                            y: 8px;
-                            source: item.icon;
-                            image-fit: contain;
+                VerticalLayout {
+                    spacing: 2px;
+                    vertical-stretch: 1;
+                    alignment: start;
+                    for item[i] in root.items: Rectangle {
+                        height: 48px;
+                        border-radius: 12px;
+                        background: i == root.selected ? Theme.text.with-alpha(0.08) : transparent;
+                        animate background { duration: 100ms; }
+                        if i == root.selected: Rectangle {
+                            x: 0;
+                            y: 12px;
+                            width: 3px;
+                            height: parent.height - 24px;
+                            border-radius: 1.5px;
+                            background: Theme.accent;
                         }
-                        VerticalLayout {
-                            alignment: center;
-                            Text {
-                                text: item.name;
-                                color: Theme.text;
-                                font-size: 14px;
-                                overflow: elide;
+                        HorizontalLayout {
+                            padding-left: 14px;
+                            padding-right: 14px;
+                            spacing: 12px;
+                            Image {
+                                width: 32px;
+                                height: 32px;
+                                y: 8px;
+                                source: item.icon;
+                                image-fit: contain;
                             }
-                            Text {
-                                text: item.detail;
-                                color: Theme.text-secondary;
-                                font-size: 11px;
-                                overflow: elide;
+                            VerticalLayout {
+                                alignment: center;
+                                Text {
+                                    text: item.name;
+                                    color: Theme.text;
+                                    font-size: 14px;
+                                    font-weight: i == root.selected ? 600 : 400;
+                                    overflow: elide;
+                                }
+                                if item.detail != "": Label {
+                                    text: item.detail.to-uppercase();
+                                    font-size: 9px;
+                                    overflow: elide;
+                                }
+                            }
+                            if i == root.selected: Label {
+                                text: "ABRIR ↵";
+                                font-size: 10px;
+                                color: Theme.accent;
+                                horizontal-stretch: 0;
+                            }
+                        }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            changed has-hover => {
+                                if self.has-hover {
+                                    root.selected = i;
+                                }
+                            }
+                            clicked => {
+                                root.activate(i);
                             }
                         }
                     }
-                    TouchArea {
-                        mouse-cursor: pointer;
-                        changed has-hover => {
-                            if self.has-hover {
-                                root.selected = i;
-                            }
-                        }
-                        clicked => {
-                            root.activate(i);
-                        }
+
+                    if root.items.length == 0 && root.query != "": Label {
+                        height: 60px;
+                        text: "SIN RESULTADOS";
+                        horizontal-alignment: center;
                     }
                 }
 
-                if root.items.length == 0 && root.query != "": Text {
-                    text: "Sin resultados";
-                    color: Theme.text-secondary;
-                    font-size: 13px;
-                    horizontal-alignment: center;
+                HorizontalLayout {
+                    height: 16px;
+                    spacing: 18px;
+                    alignment: end;
+                    Label {
+                        text: "↑↓ NAVEGAR";
+                        font-size: 9px;
+                    }
+                    Label {
+                        text: "↵ ABRIR";
+                        font-size: 9px;
+                    }
+                    Label {
+                        text: "ESC CERRAR";
+                        font-size: 9px;
+                    }
                 }
             }
         }

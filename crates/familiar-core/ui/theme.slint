@@ -1,13 +1,53 @@
 // Values are pushed from Rust whenever the TOML theme changes (hot reload).
 export global Theme {
-    in-out property <color> tint: #121214cc;
-    in-out property <color> accent: #ff6b4a;
-    in-out property <color> text: #f5f5f7;
-    in-out property <color> text-secondary: #a1a1a6;
-    in-out property <color> glow: #ffffff22;
-    in-out property <color> island: #000000f2;
-    in-out property <length> radius: 18px;
-    in-out property <length> bar-height: 32px;
+    in-out property <color> tint: #000000e6;
+    in-out property <color> accent: #d71921;
+    in-out property <color> text: #ffffff;
+    in-out property <color> text-secondary: #8e8e93;
+    in-out property <color> glow: #ffffff24;
+    in-out property <color> island: #000000;
+    in-out property <color> bar-tint: #0000004d;
+    in-out property <length> radius: 24px;
+    in-out property <length> bar-height: 34px;
     in-out property <string> font: "Segoe UI Variable Text";
+    in-out property <string> display: "Segoe UI Variable Display";
+    // Nothing-style labels: small, uppercase, monospaced, letter-spaced.
+    in-out property <string> mono: "Consolas";
     in-out property <string> icons: "Segoe Fluent Icons";
+}
+
+// Small uppercase monospaced caption ("NOW PLAYING", "JUE 29 OCT").
+export component Label inherits Text {
+    font-family: Theme.mono;
+    font-size: 11px;
+    letter-spacing: 1.2px;
+    color: Theme.text-secondary;
+    vertical-alignment: center;
+}
+
+// Rounded rectangle drawn as a path. The software renderer ignores
+// border-radius (and rounded clips) for gradient fills, but fills paths with
+// gradients correctly, so every gradient surface uses this.
+export component RoundRect inherits Path {
+    in property <length> radius: 12px;
+    property <float> w: max(1, self.width / 1px);
+    property <float> h: max(1, self.height / 1px);
+    property <float> r: min(self.radius / 1px, min(self.w, self.h) / 2);
+    // Control point for a near-circular corner with quadratic curves.
+    property <float> k: self.r * 0.08;
+    viewbox-width: self.w;
+    viewbox-height: self.h;
+    commands: "M " + self.r + " 0 L " + (self.w - self.r) + " 0 Q " + (self.w - self.k) + " " + self.k + " " + self.w + " " + self.r
+        + " L " + self.w + " " + (self.h - self.r) + " Q " + (self.w - self.k) + " " + (self.h - self.k) + " " + (self.w - self.r) + " " + self.h
+        + " L " + self.r + " " + self.h + " Q " + self.k + " " + (self.h - self.k) + " 0 " + (self.h - self.r)
+        + " L 0 " + self.r + " Q " + self.k + " " + self.k + " " + self.r + " 0 Z";
+}
+
+// A single round dot, the basic Nothing glyph.
+export component Dot inherits Rectangle {
+    in property <length> size: 4px;
+    width: self.size;
+    height: self.size;
+    border-radius: self.size / 2;
+    background: Theme.text;
 }

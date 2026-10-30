@@ -1,0 +1,25 @@
+[meta]
+name = "Paper"
+author = "Familiar Core"
+
+[colors]
+background_tint = "#F4F1EAEB"
+accent = "#D71921"
+text_primary = "#1C1C1E"
+text_secondary = "#6E6A64"
+border_glow = "#0000001F"
+island_background = "#000000FF"
+dot_off = "#0000000F"
+bar_tint = "#F4F1EA80"
+
+[metrics]
+dock_icon_size = 42
+dock_magnification = 1.55
+corner_radius = 18
+top_bar_height = 32
+blur_type = "None"
+
+[cursor]
+custom_scheme = false
+ripple_on_click = true
+shake_to_find = true

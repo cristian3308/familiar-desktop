@@ -15,7 +15,7 @@ use crate::app::{App, with_app};
 use crate::ui::{self, LauncherItem, LauncherWindow};
 
 const WIDTH: f32 = 680.0;
-const HEIGHT: f32 = 500.0;
+const HEIGHT: f32 = 590.0;
 
 pub struct Launcher {
     pub ui: LauncherWindow,
@@ -57,6 +57,12 @@ impl Launcher {
     }
 
     pub fn find_by_exe(&self, exe: &str) -> Option<AppEntry> {
+        // Shortcuts that open a folder or a script point at a generic host
+        // (e.g. "Windows Software Development Kit" → explorer.exe); those
+        // must not name every window of that host.
+        if is_generic_host(exe) {
+            return None;
+        }
         self.search
             .borrow()
             .apps()
@@ -69,6 +75,12 @@ impl Launcher {
         self.search.borrow().apps().iter().find(|a| a.launch_target.eq_ignore_ascii_case(target)).cloned()
     }
 
+    /// Store app by package family ("Claude_pzs8sxrjxfjjc").
+    pub fn find_by_family(&self, family: &str) -> Option<AppEntry> {
+        let prefix = format!("{}!", family.to_ascii_lowercase());
+        self.search.borrow().apps().iter().find(|a| a.launch_target.to_ascii_lowercase().starts_with(&prefix)).cloned()
+    }
+
     pub fn find_by_name(&self, name: &str) -> Option<AppEntry> {
         self.search.borrow().apps().iter().find(|a| a.name.eq_ignore_ascii_case(name)).cloned()
     }
@@ -76,8 +88,8 @@ impl Launcher {
     pub fn toggle(&self, app: &App) {
         if self.visible.get() {
             self.hide();
-        } else if !app.is_calm() {
-            // Never pop over a full-screen game.
+        } else if !app.is_calm() && !app.lock.is_visible() {
+            // Never pop over a full-screen game or the lock face.
             self.show(app);
         }
     }
@@ -91,6 +103,7 @@ impl Launcher {
         win.set_position(slint::PhysicalPosition::new(x, y));
         win.set_size(slint::PhysicalSize::new(w as u32, h as u32));
         self.ui.set_query("".into());
+        self.ui.set_shown(false);
         self.refresh(app, "");
         if let Err(e) = self.ui.show() {
             log::error!("launcher: {e}");
@@ -119,6 +132,8 @@ impl Launcher {
             familiar_sys::windows_list::activate(hwnd);
         }
         self.ui.invoke_focus_search();
+        // Flip on the next turn of the loop so the entry animation runs.
+        slint::Timer::single_shot(std::time::Duration::from_millis(10), || with_app(|a| a.launcher.ui.set_shown(true)));
     }
 
     pub fn hide(&self) {
@@ -164,4 +179,21 @@ impl Launcher {
         app.launch(&target);
         self.search.borrow_mut().note_launch(&target, now_unix());
     }
+}
+
+/// Executables that host many unrelated shortcuts and windows.
+pub fn is_generic_host(exe: &str) -> bool {
+    let file = exe.rsplit(['\\', '/']).next().unwrap_or_default().to_ascii_lowercase();
+    matches!(
+        file.as_str(),
+        "explorer.exe"
+            | "cmd.exe"
+            | "rundll32.exe"
+            | "wscript.exe"
+            | "cscript.exe"
+            | "mshta.exe"
+            | "msiexec.exe"
+            | "dllhost.exe"
+            | "applicationframehost.exe"
+    )
 }

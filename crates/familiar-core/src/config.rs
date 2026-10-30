@@ -15,6 +15,12 @@ pub struct AppConfig {
     /// Hide the native taskbar while running (restored on exit or crash).
     pub hide_taskbar: bool,
     pub autostart: bool,
+    /// Zoom windows out of / into their dock icon when they open or minimise.
+    pub window_animations: bool,
+    /// Minimise with the genie bend instead of the smooth scale.
+    pub genie_effect: bool,
+    /// Show the splash and lock face when Familiar starts.
+    pub lock_on_start: bool,
     pub dock: DockConfig,
     pub top_bar: TopBarConfig,
     pub island: IslandConfig,
@@ -31,6 +37,8 @@ pub struct DockConfig {
     pub reserve_space: bool,
     /// Show running apps that are not pinned (after a separator).
     pub show_running: bool,
+    /// Draw macOS-style icons for Explorer, Settings and terminals.
+    pub custom_icons: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -54,8 +62,11 @@ pub struct WidgetsConfig {
     /// Parent the widgets to the wallpaper layer (`WorkerW`) instead of
     /// keeping them bottom-most. Survives Win+D; sits over Wallpaper Engine.
     pub attach_to_wallpaper: bool,
-    /// Widget ids to show: `signal_01`, `clock_grid`.
+    /// Widget ids to show: `calendar`, `weather`, `system`, `signal_01`,
+    /// `clock_grid`.
     pub items: Vec<String>,
+    /// City for the weather widget (looked up with Open-Meteo).
+    pub weather_city: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -80,9 +91,12 @@ pub struct CalmConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            theme: "ember-dark".into(),
+            theme: "nothing-dark".into(),
             hide_taskbar: true,
             autostart: false,
+            window_animations: true,
+            genie_effect: false,
+            lock_on_start: true,
             dock: DockConfig::default(),
             top_bar: TopBarConfig::default(),
             island: IslandConfig::default(),
@@ -95,7 +109,7 @@ impl Default for AppConfig {
 
 impl Default for DockConfig {
     fn default() -> Self {
-        Self { enabled: true, reserve_space: true, show_running: true }
+        Self { enabled: true, reserve_space: true, show_running: true, custom_icons: true }
     }
 }
 
@@ -113,7 +127,12 @@ impl Default for IslandConfig {
 
 impl Default for WidgetsConfig {
     fn default() -> Self {
-        Self { enabled: true, attach_to_wallpaper: false, items: vec!["signal_01".into(), "clock_grid".into()] }
+        Self {
+            enabled: true,
+            attach_to_wallpaper: false,
+            items: ["calendar", "weather", "system", "signal_01"].map(String::from).to_vec(),
+            weather_city: "Bogotá".into(),
+        }
     }
 }
 

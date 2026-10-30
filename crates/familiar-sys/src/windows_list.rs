@@ -1,7 +1,7 @@
 //! Enumerating, matching and switching between application windows.
 
 use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, MAX_PATH, RECT, WPARAM};
-use windows::Win32::Graphics::Dwm::{DWMWA_CLOAKED, DwmGetWindowAttribute};
+use windows::Win32::Graphics::Dwm::{DWMWA_CLOAKED, DWMWA_EXTENDED_FRAME_BOUNDS, DwmGetWindowAttribute};
 use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow};
 use windows::Win32::Storage::EnhancedStorage::PKEY_AppUserModel_ID;
 use windows::Win32::System::Com::StructuredStorage::PropVariantToStringAlloc;
@@ -15,10 +15,12 @@ use windows::Win32::UI::Shell::{
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GA_ROOT, GW_OWNER, GWL_EXSTYLE, GetAncestor, GetClassNameW, GetForegroundWindow, GetWindow,
     GetWindowLongPtrW, GetWindowRect, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsIconic,
-    IsWindowVisible, PostMessageW, SW_MINIMIZE, SW_RESTORE, SetForegroundWindow, ShowWindow, SwitchToThisWindow,
-    WM_CLOSE, WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+    IsWindowVisible, IsZoomed, PostMessageW, SW_MINIMIZE, SW_RESTORE, SetForegroundWindow, ShowWindow,
+    SwitchToThisWindow, WM_CLOSE, WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
 };
 use windows::core::BOOL;
+
+use windows::Win32::UI::WindowsAndMessaging::{GetWindowPlacement, WINDOWPLACEMENT, WPF_RESTORETOMAXIMIZED};
 
 use crate::Hwnd;
 use crate::util::from_wide;
@@ -203,6 +205,17 @@ pub fn foreground_is_fullscreen() -> bool {
     if process_id(fg) == unsafe { GetCurrentProcessId() } {
         return false;
     }
+    // A maximised window briefly covers the monitor whenever the work area
+    // grows (e.g. while the taskbar is hidden at startup); that is not a
+    // full-screen app.
+    if unsafe { IsZoomed(fg) }.as_bool() {
+        return false;
+    }
+    // Only real app windows count: a live-wallpaper host (Lively, Wallpaper
+    // Engine) or the hidden taskbar can take focus while covering the monitor.
+    if !is_app_window(fg) {
+        return false;
+    }
     unsafe {
         let mut r = RECT::default();
         if GetWindowRect(fg, &mut r).is_err() {
@@ -215,5 +228,47 @@ pub fn foreground_is_fullscreen() -> bool {
         }
         let m = mi.rcMonitor;
         r.left <= m.left && r.top <= m.top && r.right >= m.right && r.bottom >= m.bottom
+    }
+}
+
+/// Visible bounds of a window in physical pixels (without the invisible
+/// resize borders Windows 10/11 add around top-level windows).
+pub fn window_rect(hwnd: Hwnd) -> Option<crate::window::Rect> {
+    let h = hwnd.get();
+    let mut r = RECT::default();
+    let size = std::mem::size_of::<RECT>() as u32;
+    let ok = unsafe { DwmGetWindowAttribute(h, DWMWA_EXTENDED_FRAME_BOUNDS, &mut r as *mut _ as *mut _, size) }.is_ok()
+        || unsafe { GetWindowRect(h, &mut r) }.is_ok();
+    (ok && r.right > r.left && r.bottom > r.top).then(|| crate::window::Rect::from_win(r))
+}
+
+/// Where the window is (or will be) when not minimised, in screen pixels:
+/// the monitor work area if it restores maximised, else its normal rect.
+pub fn restored_rect(hwnd: Hwnd) -> Option<crate::window::Rect> {
+    let h = hwnd.get();
+    unsafe {
+        if !IsIconic(h).as_bool() {
+            return window_rect(hwnd);
+        }
+        let mut wp = WINDOWPLACEMENT { length: std::mem::size_of::<WINDOWPLACEMENT>() as u32, ..Default::default() };
+        GetWindowPlacement(h, &mut wp).ok()?;
+        let mon = MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST);
+        let mut mi = MONITORINFO { cbSize: std::mem::size_of::<MONITORINFO>() as u32, ..Default::default() };
+        if !GetMonitorInfoW(mon, &mut mi).as_bool() {
+            return None;
+        }
+        if wp.flags.0 & WPF_RESTORETOMAXIMIZED.0 != 0 {
+            return Some(crate::window::Rect::from_win(mi.rcWork));
+        }
+        // rcNormalPosition is in workspace coordinates (relative to the
+        // work area's top-left).
+        let n = wp.rcNormalPosition;
+        let (ox, oy) = (mi.rcWork.left - mi.rcMonitor.left, mi.rcWork.top - mi.rcMonitor.top);
+        Some(crate::window::Rect {
+            x: n.left + ox + mi.rcMonitor.left,
+            y: n.top + oy + mi.rcMonitor.top,
+            w: n.right - n.left,
+            h: n.bottom - n.top,
+        })
     }
 }

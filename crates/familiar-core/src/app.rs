@@ -25,13 +25,16 @@ use slint::{Timer, TimerMode};
 
 use crate::audio_pipe::AudioPipe;
 use crate::config::{AppConfig, Paths};
+use crate::controlcenter::ControlCenter;
 use crate::dock::Dock;
-use crate::fx::CursorFx;
+use crate::fx::{CursorFx, WindowFx};
 use crate::indexer::{self, IconWorker};
 use crate::island::Island;
 use crate::launcher::Launcher;
+use crate::lock::Lock;
+use crate::settings::Settings;
 use crate::topbar::TopBar;
-use crate::widgets::{Kind, Widgets};
+use crate::widgets::Widgets;
 use crate::{logger, ui};
 
 thread_local! {
@@ -81,7 +84,7 @@ pub struct App {
     pub paths: Paths,
     pub store: RefCell<Store>,
     pub theme: RefCell<ThemeSpec>,
-    theme_path: PathBuf,
+    theme_path: RefCell<PathBuf>,
     pub monitor: Cell<MonitorInfo>,
 
     pub topbar: Option<TopBar>,
@@ -89,7 +92,11 @@ pub struct App {
     pub island: Option<Island>,
     pub widgets: Option<Widgets>,
     pub launcher: Launcher,
+    pub settings: Settings,
+    pub control_center: ControlCenter,
+    pub lock: Lock,
     pub fx: RefCell<Option<CursorFx>>,
+    pub window_fx: WindowFx,
     pub audio: AudioPipe,
 
     services: RefCell<Services>,
@@ -115,21 +122,27 @@ impl App {
         let topbar = cfg.top_bar.enabled.then(TopBar::new).transpose()?;
         let dock = cfg.dock.enabled.then(Dock::new).transpose()?;
         let island = cfg.island.enabled.then(Island::new).transpose()?;
-        let widgets = cfg.widgets.enabled.then(|| Widgets::new(&cfg.widgets.items)).transpose()?;
+        // Always present (maybe empty) so Settings can add widgets live.
+        let ids: &[String] = if cfg.widgets.enabled { &cfg.widgets.items } else { &[] };
+        let widgets = Some(Widgets::new(ids)?);
         Ok(Self {
             launcher: Launcher::new()?,
+            settings: Settings::new()?,
+            control_center: ControlCenter::new()?,
+            lock: Lock::new()?,
             topbar,
             dock,
             island,
             widgets,
             fx: RefCell::new(None),
+            window_fx: WindowFx::new(),
             audio: AudioPipe::new(),
             monitor: Cell::new(primary_monitor()),
             cfg: RefCell::new(cfg),
             paths,
             store: RefCell::new(store),
             theme: RefCell::new(theme),
-            theme_path,
+            theme_path: RefCell::new(theme_path),
             services: RefCell::new(Services::default()),
             media: RefCell::new(None),
             privacy: RefCell::new(PrivacyState::default()),
@@ -179,6 +192,10 @@ impl App {
         if self.cfg.borrow().autostart {
             familiar_sys::autostart::set_enabled(true);
         }
+        self.lock.set_battery(self.battery.get());
+        if self.cfg.borrow().lock_on_start {
+            self.lock.show_with_splash(self);
+        }
         log::info!("Familiar Core started");
     }
 
@@ -197,12 +214,12 @@ impl App {
         s.privacy = PrivacyWatcher::spawn(|p| post(move |a| a.on_privacy(p)))
             .map_err(|e| log::warn!("privacy watcher: {e}"))
             .ok();
-        if self.island.is_some() || self.widgets.as_ref().is_some_and(|w| w.has(Kind::Signal)) {
+        if self.island.is_some() || self.widgets.as_ref().is_some_and(|w| w.wants_media()) {
             s.media = MediaService::spawn(|m| post(move |a| a.on_media(m)))
                 .map_err(|e| log::warn!("media service: {e}"))
                 .ok();
         }
-        s.theme_watch = ThemeWatcher::spawn(&self.theme_path, |t| post(move |a| a.set_theme(t)))
+        s.theme_watch = ThemeWatcher::spawn(&self.theme_path.borrow(), |t| post(move |a| a.set_theme(t)))
             .map_err(|e| log::warn!("theme hot reload disabled: {e}"))
             .ok();
         s.icons = IconWorker::spawn(&self.paths).map_err(|e| log::warn!("icon worker: {e}")).ok();
@@ -227,6 +244,64 @@ impl App {
 
     pub fn quit(&self) {
         let _ = slint::quit_event_loop();
+    }
+
+    /// Starts a fresh copy (it waits for this one to exit) and quits.
+    pub fn restart(&self) {
+        let pid = std::process::id().to_string();
+        match std::env::current_exe().and_then(|exe| std::process::Command::new(exe).args(["--after", &pid]).spawn()) {
+            Ok(_) => self.quit(),
+            Err(e) => log::error!("restart: {e}"),
+        }
+    }
+
+    fn animations_on(&self) -> bool {
+        self.cfg.borrow().window_animations && !self.calm.get()
+    }
+
+    pub fn save_config(&self) {
+        if let Err(e) = self.cfg.borrow().save(&self.paths.config()) {
+            log::warn!("saving config: {e}");
+        }
+    }
+
+    pub fn theme_path(&self) -> PathBuf {
+        self.theme_path.borrow().clone()
+    }
+
+    /// Switches to another theme file and hot-reloads from it from now on.
+    pub fn switch_theme(&self, path: PathBuf, theme: ThemeSpec) {
+        *self.theme_path.borrow_mut() = path;
+        let watch = ThemeWatcher::spawn(&self.theme_path.borrow(), |t| post(move |a| a.set_theme(t)))
+            .map_err(|e| log::warn!("theme hot reload disabled: {e}"))
+            .ok();
+        self.services.borrow_mut().theme_watch = watch;
+        self.set_theme(theme);
+    }
+
+    /// Light/dark switch from the Control Center: Nothing Light or Dark.
+    pub fn set_dark_mode(&self, dark: bool) {
+        let stem = if dark { "nothing-dark" } else { "nothing-light" };
+        let path = self.paths.resolve_theme(stem);
+        match ThemeSpec::load(&path) {
+            Ok(t) => {
+                self.cfg.borrow_mut().theme = stem.into();
+                self.save_config();
+                self.switch_theme(path, t);
+            }
+            Err(e) => log::warn!("{}: {e}", path.display()),
+        }
+    }
+
+    pub fn set_taskbar_hidden(&self, hide: bool) {
+        if hide {
+            self.hide_taskbar();
+        } else if let Ok(mut guard) = RESTORE.lock()
+            && let Some((state, marker)) = guard.take()
+        {
+            taskbar::restore(state);
+            let _ = std::fs::remove_file(marker);
+        }
     }
 
     // ----- taskbar --------------------------------------------------------
@@ -260,11 +335,12 @@ impl App {
             ui::push_theme(&x.ui, &t);
         }
         if let Some(w) = &self.widgets {
-            for x in &w.items {
+            for x in w.items.borrow().iter() {
                 ui::push_theme(&x.ui, &t);
             }
         }
         ui::push_theme(&self.launcher.ui, &t);
+        ui::push_theme(&self.settings.ui, &t);
     }
 
     pub fn set_theme(&self, theme: ThemeSpec) {
@@ -283,6 +359,7 @@ impl App {
             x.apply_theme(self);
         }
         self.launcher.apply_theme(self);
+        self.settings.theme_changed(self);
         if let Some(fx) = self.fx.borrow().as_ref() {
             fx.apply_theme(self);
         }
@@ -322,7 +399,7 @@ impl App {
         self.sync_hooks();
         let fx = self.theme.borrow().cursor.clone();
         if fx.custom_scheme {
-            let base = self.theme_path.parent().map(Path::to_path_buf).unwrap_or_default();
+            let base = self.theme_path.borrow().parent().map(Path::to_path_buf).unwrap_or_default();
             let dir = base.join(fx.scheme_dir.as_deref().unwrap_or("cursors"));
             let n = cursor::apply_scheme(&dir);
             log::info!("applied {n} cursors from {}", dir.display());
@@ -360,6 +437,10 @@ impl App {
             ShellEvent::Foreground(h) => self.on_foreground(h),
             ShellEvent::WindowsChanged => self.windows_changed(),
             ShellEvent::TitleChanged(_) => {}
+            ShellEvent::WindowShown(h) if self.animations_on() => self.window_fx.open(self, h),
+            ShellEvent::MinimizeEnd(h) if self.animations_on() => self.window_fx.restore(self, h),
+            ShellEvent::MinimizeStart(h) if self.animations_on() => self.window_fx.minimize(self, h),
+            ShellEvent::WindowShown(_) | ShellEvent::MinimizeStart(_) | ShellEvent::MinimizeEnd(_) => {}
             ShellEvent::EmergencyExit => {
                 log::warn!("Ctrl+Alt+Q: emergency exit");
                 self.quit();
@@ -404,6 +485,12 @@ impl App {
         }
         if let Some(d) = &self.dock {
             d.set_foreground(fg);
+        }
+        if let Some(w) = &self.widgets
+            && !self.cfg.borrow().widgets.attach_to_wallpaper
+        {
+            let class = windows_list::class_name(fg.get());
+            w.desktop_in_front(matches!(class.as_str(), "Progman" | "WorkerW"));
         }
         self.evaluate_calm();
     }
@@ -458,8 +545,17 @@ impl App {
         if let Some(i) = &self.island {
             i.set_media(self, m.as_ref());
         }
+        self.control_center.set_media(m.as_ref());
+        if let Some(w) = &self.widgets {
+            w.set_media(m.as_ref());
+        }
+        self.lock.set_media(m.as_ref());
         *self.media.borrow_mut() = m;
         self.update_audio_state();
+    }
+
+    pub fn media(&self) -> Option<NowPlaying> {
+        self.media.borrow().clone()
     }
 
     pub fn media_command(&self, cmd: MediaCommand) {
@@ -537,6 +633,7 @@ impl App {
         }
         if let Some(w) = &self.widgets {
             w.render_signal(self, bands);
+            w.render_visualizer(self, bands);
         }
     }
 
@@ -562,6 +659,8 @@ impl App {
         if let Some(w) = &self.widgets {
             w.tick_clock(self);
         }
+        self.lock.refresh_clock(self);
+        self.lock.set_battery(self.battery.get());
     }
 
     // ----- apps -----------------------------------------------------------
@@ -572,6 +671,9 @@ impl App {
         }
         match apps::launch(target) {
             Ok(()) => {
+                if let Some(d) = &self.dock {
+                    d.bounce(self, target);
+                }
                 let _ = self.store.borrow().record_launch(target);
             }
             Err(e) => log::warn!("launching {target}: {e}"),
@@ -580,21 +682,30 @@ impl App {
 
     /// Display name and icon path for a running app that may not be pinned.
     pub fn describe_app(&self, key: &str, w: &AppWindow) -> (String, PathBuf) {
+        let stem = Path::new(&w.exe_path).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
         let found = self
             .launcher
             .find_by_target(key)
-            .or_else(|| if w.exe_path.is_empty() { None } else { self.launcher.find_by_exe(&w.exe_path) });
+            .or_else(|| if w.exe_path.is_empty() { None } else { self.launcher.find_by_exe(&w.exe_path) })
+            // Store apps run from WindowsApps; their index entry is keyed by
+            // package family ("Claude_pzs8sxrjxfjjc!Claude").
+            .or_else(|| package_family(&w.exe_path).and_then(|f| self.launcher.find_by_family(&f)))
+            .or_else(|| if stem.is_empty() { None } else { self.launcher.find_by_name(&stem) });
         if let Some(a) = found {
             if !a.icon_cache_path.is_empty() {
                 return (a.name, PathBuf::from(a.icon_cache_path));
             }
             return (a.name, self.icon_path_for(key));
         }
-        let name = Path::new(&w.exe_path)
-            .file_stem()
-            .map(|s| s.to_string_lossy().into_owned())
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| w.title.clone());
+        let name = match stem.to_ascii_lowercase().as_str() {
+            "explorer" => "Explorador de archivos".to_string(),
+            "" => w.title.clone(),
+            // "notepad" → "Notepad": nicer than the raw file name.
+            _ => {
+                let mut c = stem.chars();
+                c.next().map(|f| f.to_uppercase().chain(c).collect()).unwrap_or_default()
+            }
+        };
         (name, self.icon_path_for(key))
     }
 
@@ -626,6 +737,9 @@ impl App {
         let pid = windows_list::process_id(fg.get());
         if pid == std::process::id() {
             return "Familiar".into();
+        }
+        if class == "CabinetWClass" {
+            return "Explorador de archivos".into();
         }
         let w = AppWindow {
             hwnd: fg,
@@ -829,6 +943,13 @@ fn select_backend() -> Result<(), slint::PlatformError> {
 }
 
 pub fn main() -> i32 {
+    // Per-monitor DPI awareness, before any window exists. Without it Windows
+    // bitmap-stretches every surface (blurry at 125 %) and hands out scaled
+    // monitor rects, so the AppBar reservations land in the wrong place.
+    unsafe {
+        use windows::Win32::UI::HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext};
+        let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    }
     let args: Vec<String> = std::env::args().collect();
     let paths = Paths::resolve();
     if let Err(e) = paths.ensure() {
@@ -836,11 +957,23 @@ pub fn main() -> i32 {
         return 1;
     }
     logger::init(&paths.log());
-    if let Some(code) = run_cli(&args, &paths) {
+    if args.get(1).is_none_or(|a| a != "--after")
+        && let Some(code) = run_cli(&args, &paths)
+    {
         return code;
     }
 
-    let Some(_instance) = familiar_sys::util::SingleInstance::acquire("Local\\FamiliarCore.SingleInstance") else {
+    // `--after <pid>`: restarted from the settings; wait for the old copy.
+    let restarted = args.get(1).is_some_and(|a| a == "--after");
+    let mut instance = None;
+    for _ in 0..if restarted { 50 } else { 1 } {
+        instance = familiar_sys::util::SingleInstance::acquire("Local\\FamiliarCore.SingleInstance");
+        if instance.is_some() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+    let Some(_instance) = instance else {
         log::info!("already running");
         return 0;
     };
@@ -892,9 +1025,31 @@ pub fn main() -> i32 {
     0
 }
 
+/// Package family name ("Claude_pzs8sxrjxfjjc") of an exe under
+/// `WindowsApps\Claude_4.29.0.0_x64__pzs8sxrjxfjjc\...`.
+fn package_family(exe: &str) -> Option<String> {
+    let lower = exe.to_ascii_lowercase();
+    const DIR: &str = "\\windowsapps\\";
+    let at = lower.find(DIR)? + DIR.len();
+    let folder = exe[at..].split('\\').next()?;
+    let (head, publisher) = folder.rsplit_once("__")?;
+    let name = head.split('_').next()?;
+    Some(format!("{name}_{publisher}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::slug;
+
+    #[test]
+    fn package_families() {
+        assert_eq!(
+            super::package_family(r"C:\Program Files\WindowsApps\Claude_4.29.0.0_x64__pzs8sxrjxfjjc\app\Claude.exe")
+                .as_deref(),
+            Some("Claude_pzs8sxrjxfjjc")
+        );
+        assert_eq!(super::package_family(r"C:\Windows\notepad.exe"), None);
+    }
 
     #[test]
     fn slugs() {
