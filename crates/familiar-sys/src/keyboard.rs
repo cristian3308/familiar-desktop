@@ -86,6 +86,13 @@ fn send_mask_key() {
 
 unsafe extern "system" fn hook_proc(code: i32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     if code >= 0 {
+        crate::safety::ffi_guard((), || on_key(wp, lp));
+    }
+    unsafe { CallNextHookEx(Some(HHOOK::default()), code, wp, lp) }
+}
+
+fn on_key(wp: WPARAM, lp: LPARAM) {
+    {
         // SAFETY: for WH_KEYBOARD_LL, lParam points to a KBDLLHOOKSTRUCT.
         let k = unsafe { &*(lp.0 as *const KBDLLHOOKSTRUCT) };
         if k.flags.0 & LLKHF_INJECTED.0 == 0 {
@@ -118,5 +125,4 @@ unsafe extern "system" fn hook_proc(code: i32, wp: WPARAM, lp: LPARAM) -> LRESUL
             }
         }
     }
-    unsafe { CallNextHookEx(Some(HHOOK::default()), code, wp, lp) }
 }

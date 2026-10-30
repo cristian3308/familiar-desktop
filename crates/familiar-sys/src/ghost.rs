@@ -35,7 +35,7 @@ use crate::Hwnd;
 use crate::window::Rect;
 
 unsafe extern "system" fn host_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
-    unsafe { DefWindowProcW(hwnd, msg, wp, lp) }
+    crate::safety::ffi_guard(LRESULT(0), || unsafe { DefWindowProcW(hwnd, msg, wp, lp) })
 }
 
 pub struct Ghost {

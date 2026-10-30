@@ -44,6 +44,10 @@ pub fn add(hwnd: HWND, handler: Handler) {
 }
 
 unsafe extern "system" fn subclass_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
+    crate::safety::ffi_guard(LRESULT(0), || dispatch(hwnd, msg, wp, lp))
+}
+
+fn dispatch(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     let found = REGISTRY.with(|r| r.borrow().get(&hwnd.into()).map(|e| (e.original, e.handlers.clone())));
     let Some((original, handlers)) = found else {
         return LRESULT(0);

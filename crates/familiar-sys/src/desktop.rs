@@ -30,6 +30,9 @@ pub fn wallpaper_host() -> Option<HWND> {
         // window that contains SHELLDLL_DefView.
         let mut found = HWND::default();
         unsafe extern "system" fn find(hwnd: HWND, lp: LPARAM) -> BOOL {
+            crate::safety::ffi_guard(false.into(), || find_worker(hwnd, lp))
+        }
+        fn find_worker(hwnd: HWND, lp: LPARAM) -> BOOL {
             unsafe {
                 if FindWindowExW(Some(hwnd), None, w!("SHELLDLL_DefView"), None).is_ok_and(|h| !h.is_invalid())
                     && let Ok(worker) = FindWindowExW(None, Some(hwnd), w!("WorkerW"), None)

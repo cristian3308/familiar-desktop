@@ -71,6 +71,14 @@ impl Drop for MouseHook {
 
 unsafe extern "system" fn hook_proc(code: i32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     if code >= 0 {
+        crate::safety::ffi_guard((), || on_mouse(wp, lp));
+    }
+    // Hooks must return quickly or Windows silently removes them.
+    unsafe { CallNextHookEx(Some(HHOOK::default()), code, wp, lp) }
+}
+
+fn on_mouse(wp: WPARAM, lp: LPARAM) {
+    {
         // SAFETY: for WH_MOUSE_LL, lParam points to an MSLLHOOKSTRUCT.
         let m = unsafe { &*(lp.0 as *const MSLLHOOKSTRUCT) };
         let (x, y) = (m.pt.x, m.pt.y);
@@ -86,6 +94,4 @@ unsafe extern "system" fn hook_proc(code: i32, wp: WPARAM, lp: LPARAM) -> LRESUL
             }
         });
     }
-    // Hooks must return quickly or Windows silently removes them.
-    unsafe { CallNextHookEx(Some(HHOOK::default()), code, wp, lp) }
 }

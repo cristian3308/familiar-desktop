@@ -222,6 +222,14 @@ unsafe fn run(opts: ShellWatcherOptions) {
 }
 
 unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
+    if msg == WM_QUERYENDSESSION {
+        return LRESULT(1);
+    }
+    crate::safety::ffi_guard((), || on_message(msg, wp));
+    unsafe { DefWindowProcW(hwnd, msg, wp, lp) }
+}
+
+fn on_message(msg: u32, wp: WPARAM) {
     let taskbar_created = TASKBAR_CREATED.with(|t| t.get());
     match msg {
         WM_HOTKEY => match wp.0 as i32 {
@@ -229,7 +237,6 @@ unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM)
             HOTKEY_LAUNCHER => emit(ShellEvent::LauncherHotkey),
             _ => {}
         },
-        WM_QUERYENDSESSION => return LRESULT(1),
         WM_ENDSESSION if wp.0 != 0 => emit(ShellEvent::SessionEnding),
         WM_DISPLAYCHANGE => emit(ShellEvent::DisplayChanged),
         // SPI_SETWORKAREA (0x2F) is sent when an AppBar or the taskbar moves.
@@ -238,7 +245,6 @@ unsafe extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM)
         m if m != 0 && m == taskbar_created => emit(ShellEvent::ExplorerRestarted),
         _ => {}
     }
-    unsafe { DefWindowProcW(hwnd, msg, wp, lp) }
 }
 
 unsafe extern "system" fn win_event_proc(
@@ -250,6 +256,10 @@ unsafe extern "system" fn win_event_proc(
     _thread: u32,
     _time: u32,
 ) {
+    crate::safety::ffi_guard((), || on_win_event(event, hwnd, id_object, id_child));
+}
+
+fn on_win_event(event: u32, hwnd: HWND, id_object: i32, id_child: i32) {
     if id_object != OBJID_WINDOW.0 || id_child != CHILDID_SELF as i32 || hwnd.is_invalid() {
         return;
     }

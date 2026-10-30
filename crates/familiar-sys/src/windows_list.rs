@@ -122,9 +122,11 @@ pub fn is_app_window(hwnd: HWND) -> bool {
 pub fn list_app_windows() -> Vec<AppWindow> {
     let mut handles: Vec<HWND> = Vec::new();
     unsafe extern "system" fn collect(hwnd: HWND, lp: LPARAM) -> BOOL {
-        let v = unsafe { &mut *(lp.0 as *mut Vec<HWND>) };
-        v.push(hwnd);
-        true.into()
+        crate::safety::ffi_guard(false.into(), || {
+            let v = unsafe { &mut *(lp.0 as *mut Vec<HWND>) };
+            v.push(hwnd);
+            true.into()
+        })
     }
     unsafe {
         let _ = EnumWindows(Some(collect), LPARAM(&mut handles as *mut _ as isize));

@@ -512,12 +512,11 @@ const SURFACE_CLASS: PCWSTR = w!("FamiliarCoreSurface");
 const WAKE_CLASS: PCWSTR = w!("FamiliarCoreWake");
 
 unsafe extern "system" fn surface_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
-    if let Some(w) = adapter_for(hwnd)
-        && let Some(r) = w.handle(msg, wp, lp)
-    {
-        return r;
+    let handled = familiar_sys::safety::ffi_guard(None, || adapter_for(hwnd).and_then(|w| w.handle(msg, wp, lp)));
+    match handled {
+        Some(r) => r,
+        None => unsafe { DefWindowProcW(hwnd, msg, wp, lp) },
     }
-    unsafe { DefWindowProcW(hwnd, msg, wp, lp) }
 }
 
 unsafe extern "system" fn wake_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
