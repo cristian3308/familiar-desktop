@@ -67,6 +67,8 @@ pub struct WidgetsConfig {
     pub items: Vec<String>,
     /// City for the weather widget (looked up with Open-Meteo).
     pub weather_city: String,
+    /// SIGNAL/01 mode: face, pulse, ripple, torus or clock.
+    pub signal_mode: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -132,6 +134,7 @@ impl Default for WidgetsConfig {
             attach_to_wallpaper: false,
             items: ["calendar", "weather", "system", "signal_01"].map(String::from).to_vec(),
             weather_city: "Bogotá".into(),
+            signal_mode: "face".into(),
         }
     }
 }

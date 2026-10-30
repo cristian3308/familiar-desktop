@@ -633,8 +633,7 @@ impl App {
             i.set_spectrum(ui::image_from_rgba(w, h, &px));
         }
         if let Some(w) = &self.widgets {
-            w.render_signal(self, bands);
-            w.render_visualizer(self, bands);
+            w.on_audio(self, bands);
         }
     }
 

@@ -235,6 +235,7 @@ export component SettingsWindow inherits Window {
     in-out property <bool> w-weather;
     in-out property <bool> w-system;
     in-out property <bool> w-signal;
+    in property <string> signal-mode;
     in-out property <bool> w-clock;
     in-out property <bool> w-visualizer;
     in-out property <bool> w-analog;
@@ -252,6 +253,7 @@ export component SettingsWindow inherits Window {
     callback changed();
     callback theme-chosen(int);
     callback city-committed(string);
+    callback signal-mode-next();
     callback restart();
     callback quit-familiar();
     callback close-window();
@@ -562,7 +564,14 @@ export component SettingsWindow inherits Window {
                         }
                         Row {
                             title: "SIGNAL/01";
-                            detail: "Visualizador de audio de puntos";
+                            detail: "Matriz de puntos: pulsa el modo para cambiarlo";
+                            Button {
+                                y: 9px;
+                                text: root.signal-mode;
+                                clicked => {
+                                    root.signal-mode-next();
+                                }
+                            }
                             Switch {
                                 y: 12px;
                                 on <=> root.w-signal;

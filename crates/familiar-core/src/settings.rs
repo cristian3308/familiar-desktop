@@ -46,6 +46,13 @@ impl Settings {
                 }
             })
         });
+        ui.on_signal_mode_next(|| {
+            with_app(|a| {
+                if let Some(w) = &a.widgets {
+                    w.next_signal_mode(a);
+                }
+            })
+        });
         ui.on_restart(|| with_app(|a| a.restart()));
         ui.on_quit_familiar(|| with_app(|a| a.quit()));
         ui.on_close_window(|| with_app(|a| a.settings.hide()));
@@ -164,11 +171,16 @@ impl Settings {
         self.ui.set_w_analog(has(WIDGETS[6]));
         self.ui.set_w_music(has(WIDGETS[7]));
         self.ui.set_city(cfg.widgets.weather_city.as_str().into());
+        self.ui.set_signal_mode(crate::widgets::signal_mode(&cfg).name().into());
         self.ui.set_hide_taskbar(cfg.hide_taskbar);
         self.ui.set_autostart(cfg.autostart);
         self.ui.set_lock_on_start(cfg.lock_on_start);
         self.ui.set_window_animations(cfg.window_animations);
         self.ui.set_genie_effect(cfg.genie_effect);
+    }
+
+    pub fn refresh_signal_mode(&self, mode: familiar_signal::signal::SignalMode) {
+        self.ui.set_signal_mode(mode.name().into());
     }
 
     /// Reads every control and applies what changed.

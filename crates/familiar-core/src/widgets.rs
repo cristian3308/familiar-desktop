@@ -14,6 +14,7 @@ use familiar_layout::WidgetGrid;
 use familiar_signal::Matrix;
 use familiar_signal::raster::{self, DotStyle, Rgba};
 use familiar_signal::scenes::{self, Scene, SceneState};
+use familiar_signal::signal::{self, SignalMode, SignalState};
 use familiar_store::WidgetLayout;
 use familiar_sys::media::{MediaCommand, NowPlaying};
 use familiar_sys::sysinfo::{self, CpuMeter};
@@ -23,6 +24,7 @@ use familiar_sys::{Hwnd, clock, power};
 use slint::{ComponentHandle, Timer, TimerMode, VecModel};
 
 use crate::app::{App, post, with_app};
+use crate::config::AppConfig;
 use crate::ui::{self, CalCell, WeatherHour, WidgetWindow};
 
 const CELL: f32 = 88.0;
@@ -121,7 +123,20 @@ pub struct Widgets {
     cpu: RefCell<CpuMeter>,
     scene: std::cell::Cell<usize>,
     scene_state: RefCell<SceneState>,
+    signal_state: RefCell<SignalState>,
+    /// Keeps SIGNAL/01 and the visualizer moving while no audio arrives.
+    idle_anim: Timer,
+    started: std::time::Instant,
+    /// When the last spectrum frame arrived (audio frames drive rendering).
+    last_audio: Cell<Option<std::time::Instant>>,
 }
+
+/// The configured SIGNAL/01 mode (face when unknown).
+pub fn signal_mode(cfg: &AppConfig) -> SignalMode {
+    SignalMode::from_id(&cfg.widgets.signal_mode).unwrap_or(SignalMode::Face)
+}
+
+const IDLE_FRAME: Duration = Duration::from_millis(50);
 
 impl Widgets {
     pub fn new(app_ids: &[String]) -> Result<Self, slint::PlatformError> {
@@ -140,6 +155,10 @@ impl Widgets {
             cpu: RefCell::default(),
             scene: std::cell::Cell::new(0),
             scene_state: RefCell::default(),
+            signal_state: RefCell::default(),
+            idle_anim: Timer::default(),
+            started: std::time::Instant::now(),
+            last_audio: Cell::new(None),
         })
     }
 
@@ -156,10 +175,12 @@ impl Widgets {
         });
         ui.on_tapped(move || {
             with_app(|a| {
-                if kind == Kind::Visualizer
-                    && let Some(ws) = a.widgets.as_ref()
-                {
-                    ws.next_scene(a);
+                if let Some(ws) = a.widgets.as_ref() {
+                    match kind {
+                        Kind::Visualizer => ws.next_scene(a),
+                        Kind::Signal => ws.next_signal_mode(a),
+                        _ => {}
+                    }
                 }
             })
         });
@@ -273,6 +294,18 @@ impl Widgets {
 
     /// Starts the periodic refreshes the visible widgets need.
     fn start_live(&self, app: &App) {
+        let animated = self.has(Kind::Signal) || self.has(Kind::Visualizer);
+        if !animated {
+            self.idle_anim.stop();
+        } else if !self.idle_anim.running() {
+            self.idle_anim.start(TimerMode::Repeated, IDLE_FRAME, || {
+                with_app(|a| {
+                    if let Some(w) = &a.widgets {
+                        w.idle_frame(a);
+                    }
+                })
+            });
+        }
         if !self.has(Kind::Weather) {
             self.weather_timer.stop();
         } else if !self.weather_timer.running() {
@@ -438,15 +471,51 @@ impl Widgets {
         w.ui.set_subcaption(clock::date_string("ddd d").to_uppercase().into());
     }
 
-    /// Renders SIGNAL/01 from the current spectrum (empty = idle face).
+    /// A spectrum frame from the audio thread: it drives both animations.
+    pub fn on_audio(&self, app: &App, bands: &[f32]) {
+        self.last_audio.set(Some(std::time::Instant::now()));
+        self.render_signal(app, bands);
+        self.render_visualizer(app, bands);
+    }
+
+    /// Without audio frames, keep the animations alive on a slow timer.
+    fn idle_frame(&self, app: &App) {
+        if self.last_audio.get().is_some_and(|t| t.elapsed() < IDLE_FRAME * 2) {
+            return;
+        }
+        self.render_signal(app, &[]);
+        if self.get(Kind::Visualizer).is_some() {
+            self.render_visualizer(app, &[]);
+        }
+    }
+
+    /// Renders SIGNAL/01 in its configured mode (empty bands = silence).
     pub fn render_signal(&self, app: &App, bands: &[f32]) {
         let Some(w) = self.get(Kind::Signal) else { return };
+        let mode = signal_mode(&app.cfg.borrow());
+        let now = clock::now();
+        let frame = signal::Frame {
+            t: self.started.elapsed().as_secs_f32(),
+            hour: now.hour.into(),
+            minute: now.minute.into(),
+            second: now.second.into(),
+        };
         let mut m = Matrix::new(32, 16);
-        m.draw_signal_face(bands);
+        signal::draw(&mut m, mode, bands, frame, &mut self.signal_state.borrow_mut());
         let (iw, ih, px) = raster::render(&m, &Self::style(app, 7));
         w.ui.set_matrix(ui::image_from_rgba(iw, ih, &px));
         let live = bands.iter().any(|b| *b > 0.02);
-        w.ui.set_subcaption(if live { "LIVE" } else { "IDLE" }.into());
+        w.ui.set_subcaption(format!("{} · {}", mode.name(), if live { "LIVE" } else { "IDLE" }).into());
+    }
+
+    /// Next SIGNAL/01 mode (tap on the widget or Settings), saved to config.
+    pub fn next_signal_mode(&self, app: &App) {
+        let next = signal_mode(&app.cfg.borrow()).next();
+        app.cfg.borrow_mut().widgets.signal_mode = next.id().into();
+        app.save_config();
+        *self.signal_state.borrow_mut() = SignalState::default();
+        self.render_signal(app, &[]);
+        app.settings.refresh_signal_mode(next);
     }
 
     /// Widgets that need the audio spectrum or media sessions.
