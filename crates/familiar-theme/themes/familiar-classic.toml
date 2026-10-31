@@ -1,0 +1,25 @@
+[meta]
+name = "Familiar Classic"
+author = "Familiar Core"
+
+[colors]
+background_tint = "#161618E6"
+accent = "#FF5A36"
+text_primary = "#F5F5F7"
+text_secondary = "#A1A1A6"
+border_glow = "#FFFFFF26"
+island_background = "#000000FF"
+dot_off = "#FFFFFF14"
+bar_tint = "#00000059"
+
+[metrics]
+dock_icon_size = 46
+dock_magnification = 1.5
+corner_radius = 18
+top_bar_height = 32
+blur_type = "Acrylic"
+
+[cursor]
+custom_scheme = false
+ripple_on_click = true
+shake_to_find = true

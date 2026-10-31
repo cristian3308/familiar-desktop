@@ -1,0 +1,25 @@
+[meta]
+name = "Orchid"
+author = "Familiar Core"
+
+[colors]
+background_tint = "#1C0F22E6"
+accent = "#E07BE0"
+text_primary = "#FFF0FF"
+text_secondary = "#B99BBF"
+border_glow = "#E07BE040"
+island_background = "#0D0610FF"
+dot_off = "#FFFFFF14"
+bar_tint = "#1C0F224D"
+
+[metrics]
+dock_icon_size = 44
+dock_magnification = 1.55
+corner_radius = 20
+top_bar_height = 32
+blur_type = "Acrylic"
+
+[cursor]
+custom_scheme = false
+ripple_on_click = true
+shake_to_find = true

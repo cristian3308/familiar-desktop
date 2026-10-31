@@ -255,6 +255,11 @@ export component SettingsWindow inherits Window {
     callback city-committed(string);
     callback signal-mode-next();
     callback files-style-next();
+    callback surprise-me();
+    callback theme-from-wallpaper();
+    callback transition-next();
+    in property <string> transition;
+    in-out property <bool> alt-w;
     in property <string> files-style;
     in-out property <bool> window-previews;
     callback restart();
@@ -360,16 +365,17 @@ export component SettingsWindow inherits Window {
                     SectionTitle {
                         text: "TEMA";
                     }
-                    // Paint-chip cards, four per row.
-                    Rectangle {
-                        property <length> card-w: (self.width - 3 * 10px) / 4;
-                        height: ceil(root.themes.length / 4) * 112px;
+                    // Paint-chip cards, six per row; scrolls past three rows.
+                    grid := Flickable {
+                        property <length> card-w: (self.width - 5 * 8px) / 6;
+                        height: min(3, ceil(root.themes.length / 6)) * 86px;
+                        content-height: ceil(root.themes.length / 6) * 86px;
                         for t[i] in root.themes: Rectangle {
                             property <bool> chosen: i == root.theme-index;
-                            x: mod(i, 4) * (parent.card-w + 10px);
-                            y: floor(i / 4) * 112px + (chosen ? 0px : 4px);
-                            width: parent.card-w;
-                            height: 100px;
+                            x: mod(i, 6) * (grid.card-w + 8px);
+                            y: floor(i / 6) * 86px + (chosen ? 0px : 3px);
+                            width: grid.card-w;
+                            height: 78px;
                             border-radius: 12px;
                             background: #f5f5f0;
                             border-width: chosen ? 2px : 1px;
@@ -379,7 +385,7 @@ export component SettingsWindow inherits Window {
                             // Colour swatch.
                             Rectangle {
                                 y: 0;
-                                height: 58px;
+                                height: 44px;
                                 background: t.bg;
                                 Rectangle {
                                     x: parent.width - 20px;
@@ -390,8 +396,8 @@ export component SettingsWindow inherits Window {
                                     background: t.accent;
                                 }
                                 Text {
-                                    x: 10px;
-                                    y: 32px;
+                                    x: 8px;
+                                    y: 20px;
                                     text: "Aa";
                                     color: t.ink;
                                     font-family: Theme.display;
@@ -400,18 +406,18 @@ export component SettingsWindow inherits Window {
                                 }
                             }
                             Text {
-                                x: 10px;
-                                y: 63px;
+                                x: 8px;
+                                y: 47px;
                                 text: t.name;
                                 color: #1c1c1e;
-                                font-size: 12px;
+                                font-size: 11px;
                                 font-weight: 700;
                                 overflow: elide;
-                                width: parent.width - 20px;
+                                width: parent.width - 16px;
                             }
                             Text {
-                                x: 10px;
-                                y: 80px;
+                                x: 8px;
+                                y: 62px;
                                 text: t.code;
                                 color: #8e8e93;
                                 font-family: Theme.mono;
@@ -424,6 +430,23 @@ export component SettingsWindow inherits Window {
                                     root.theme-index = i;
                                     root.theme-chosen(i);
                                 }
+                            }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 10px;
+                        alignment: start;
+                        Button {
+                            text: "Surprise me";
+                            primary: true;
+                            clicked => {
+                                root.surprise-me();
+                            }
+                        }
+                        Button {
+                            text: "Tema desde el fondo";
+                            clicked => {
+                                root.theme-from-wallpaper();
                             }
                         }
                     }
@@ -719,6 +742,24 @@ export component SettingsWindow inherits Window {
                             Switch {
                                 y: 12px;
                                 on <=> root.lock-on-start;
+                                toggled => {
+                                    root.changed();
+                                }
+                            }
+                        }
+                        Row {
+                            title: "Alt + W cambia el fondo";
+                            detail: "Recorre la carpeta del fondo actual (al reiniciar)";
+                            Button {
+                                y: 9px;
+                                text: root.transition;
+                                clicked => {
+                                    root.transition-next();
+                                }
+                            }
+                            Switch {
+                                y: 12px;
+                                on <=> root.alt-w;
                                 toggled => {
                                     root.changed();
                                 }

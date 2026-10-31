@@ -57,6 +57,16 @@ impl Settings {
                 }
             })
         });
+        ui.on_surprise_me(|| with_app(|a| a.settings.surprise_me(a)));
+        ui.on_theme_from_wallpaper(|| with_app(|a| a.settings.theme_from_wallpaper(a)));
+        ui.on_transition_next(|| {
+            with_app(|a| {
+                let next = crate::wallfx::Transition::from_id(&a.cfg.borrow().wallpaper.transition).next();
+                a.cfg.borrow_mut().wallpaper.transition = next.id().into();
+                a.save_config();
+                a.settings.ui.set_transition(next.name().into());
+            })
+        });
         ui.on_signal_mode_next(|| {
             with_app(|a| {
                 if let Some(w) = &a.widgets {
@@ -172,6 +182,8 @@ impl Settings {
         let cfg = app.cfg.borrow();
         self.ui.set_custom_icons(cfg.dock.custom_icons);
         self.ui.set_window_previews(cfg.dock.window_previews);
+        self.ui.set_alt_w(cfg.wallpaper.alt_w);
+        self.ui.set_transition(crate::wallfx::Transition::from_id(&cfg.wallpaper.transition).name().into());
         self.ui.set_files_style(crate::dock::FilesStyle::from_id(&cfg.dock.files_style).name().into());
         self.ui.set_show_running(cfg.dock.show_running);
         let has = |id: &str| cfg.widgets.enabled && cfg.widgets.items.iter().any(|i| i == id);
@@ -237,6 +249,7 @@ impl Settings {
                 || cfg.dock.show_running != self.ui.get_show_running();
             cfg.dock.custom_icons = self.ui.get_custom_icons();
             cfg.dock.window_previews = self.ui.get_window_previews();
+            cfg.wallpaper.alt_w = self.ui.get_alt_w();
             cfg.dock.show_running = self.ui.get_show_running();
             // Keep the user's order for widgets they already had.
             let mut new_items: Vec<String> = cfg.widgets.items.iter().filter(|i| items.contains(i)).cloned().collect();
@@ -281,6 +294,48 @@ impl Settings {
             }
             Err(e) => log::warn!("{}: {e}", path.display()),
         }
+    }
+
+    /// "Surprise me": a random harmonious theme, saved as `surprise.toml`.
+    fn surprise_me(&self, app: &App) {
+        let seed = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos() as u64)
+            .unwrap_or(7);
+        self.apply_generated(app, "surprise", familiar_theme::palette::surprise(seed));
+    }
+
+    /// A theme around the wallpaper's colours, saved as `wallpaper.toml`.
+    /// Decoding a large image takes a moment, so it runs off the UI thread.
+    fn theme_from_wallpaper(&self, _app: &App) {
+        let spawned = std::thread::Builder::new().name("wallpaper-theme".into()).spawn(|| {
+            let Some(path) = familiar_sys::wallpaper::current() else {
+                log::info!("theme from wallpaper: the wallpaper is not an image file");
+                return;
+            };
+            let Some(pic) = familiar_sys::wallpaper::load(&path, 96) else { return };
+            let theme = familiar_theme::palette::from_wallpaper(&pic.rgba);
+            crate::app::post(move |a| a.settings.apply_generated(a, "wallpaper", theme));
+        });
+        if let Err(e) = spawned {
+            log::warn!("theme from wallpaper: {e}");
+        }
+    }
+
+    fn apply_generated(&self, app: &App, stem: &str, theme: ThemeSpec) {
+        let path = app.paths.themes_dir().join(format!("{stem}.toml"));
+        let written = theme
+            .to_toml()
+            .map_err(|e| e.to_string())
+            .and_then(|src| std::fs::write(&path, src).map_err(|e| e.to_string()));
+        if let Err(e) = written {
+            log::warn!("{}: {e}", path.display());
+            return;
+        }
+        app.cfg.borrow_mut().theme = stem.into();
+        app.save_config();
+        app.switch_theme(path, theme);
+        self.load(app);
     }
 
     /// Keeps the open window in step after a hot reload.

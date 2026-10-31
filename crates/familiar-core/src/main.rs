@@ -36,6 +36,8 @@ mod topbar;
 #[cfg(windows)]
 mod ui;
 #[cfg(windows)]
+mod wallfx;
+#[cfg(windows)]
 mod widgets;
 
 #[cfg(windows)]

@@ -1,0 +1,25 @@
+[meta]
+name = "Cobalt"
+author = "Familiar Core"
+
+[colors]
+background_tint = "#0A1A3AE6"
+accent = "#2F7BFF"
+text_primary = "#EAF1FF"
+text_secondary = "#8FA6CF"
+border_glow = "#2F7BFF40"
+island_background = "#030A1CFF"
+dot_off = "#FFFFFF14"
+bar_tint = "#0A1A3A4D"
+
+[metrics]
+dock_icon_size = 44
+dock_magnification = 1.55
+corner_radius = 16
+top_bar_height = 32
+blur_type = "Acrylic"
+
+[cursor]
+custom_scheme = false
+ripple_on_click = true
+shake_to_find = true

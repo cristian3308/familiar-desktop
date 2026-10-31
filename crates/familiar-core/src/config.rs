@@ -27,6 +27,24 @@ pub struct AppConfig {
     pub widgets: WidgetsConfig,
     pub launcher: LauncherConfig,
     pub calm: CalmConfig,
+    pub wallpaper: WallpaperConfig,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct WallpaperConfig {
+    /// Alt+W switches to the next image (off by default: apps use Alt+W).
+    pub alt_w: bool,
+    /// Folder of images to rotate through; empty = the current wallpaper's.
+    pub folder: String,
+    /// fade, circle, wipe or dots.
+    pub transition: String,
+}
+
+impl Default for WallpaperConfig {
+    fn default() -> Self {
+        Self { alt_w: false, folder: String::new(), transition: "fade".into() }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -113,6 +131,7 @@ impl Default for AppConfig {
             widgets: WidgetsConfig::default(),
             launcher: LauncherConfig::default(),
             calm: CalmConfig::default(),
+            wallpaper: WallpaperConfig::default(),
         }
     }
 }

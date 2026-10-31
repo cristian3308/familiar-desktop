@@ -35,6 +35,7 @@ pub mod subclass;
 pub mod sysinfo;
 pub mod taskbar;
 pub mod util;
+pub mod wallpaper;
 pub mod weather;
 pub mod window;
 pub mod windows_list;

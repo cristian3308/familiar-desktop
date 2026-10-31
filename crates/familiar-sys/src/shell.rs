@@ -46,6 +46,8 @@ pub enum ShellEvent {
     EmergencyExit,
     /// The launcher hotkey (when registered as a classic hotkey).
     LauncherHotkey,
+    /// Alt+W: next wallpaper.
+    WallpaperHotkey,
     /// Explorer restarted; AppBars and taskbar hiding must be redone.
     ExplorerRestarted,
     /// Windows is logging off or shutting down.
@@ -91,6 +93,8 @@ impl Hotkey {
 
 pub struct ShellWatcherOptions {
     pub launcher_hotkey: Option<Hotkey>,
+    /// Register Alt+W for the next wallpaper.
+    pub wallpaper_hotkey: bool,
 }
 
 pub struct ShellWatcher {
@@ -115,6 +119,7 @@ fn emit(ev: ShellEvent) {
 
 const HOTKEY_EMERGENCY: i32 = 1;
 const HOTKEY_LAUNCHER: i32 = 2;
+const HOTKEY_WALLPAPER: i32 = 3;
 
 impl ShellWatcher {
     pub fn spawn(opts: ShellWatcherOptions, cb: impl Fn(ShellEvent) + Send + 'static) -> std::io::Result<Self> {
@@ -187,6 +192,11 @@ unsafe fn run(opts: ShellWatcherOptions) {
                 log::warn!("launcher hotkey is taken by another app");
             }
         }
+        if opts.wallpaper_hotkey
+            && RegisterHotKey(Some(hwnd), HOTKEY_WALLPAPER, MOD_ALT | MOD_NOREPEAT, 'W' as u32).is_err()
+        {
+            log::warn!("Alt+W is taken by another app");
+        }
     }
 
     let flags = WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS;
@@ -217,6 +227,7 @@ unsafe fn run(opts: ShellWatcherOptions) {
         }
         let _ = UnregisterHotKey(Some(hwnd), HOTKEY_EMERGENCY);
         let _ = UnregisterHotKey(Some(hwnd), HOTKEY_LAUNCHER);
+        let _ = UnregisterHotKey(Some(hwnd), HOTKEY_WALLPAPER);
         let _ = DestroyWindow(hwnd);
     }
 }
@@ -235,6 +246,7 @@ fn on_message(msg: u32, wp: WPARAM) {
         WM_HOTKEY => match wp.0 as i32 {
             HOTKEY_EMERGENCY => emit(ShellEvent::EmergencyExit),
             HOTKEY_LAUNCHER => emit(ShellEvent::LauncherHotkey),
+            HOTKEY_WALLPAPER => emit(ShellEvent::WallpaperHotkey),
             _ => {}
         },
         WM_ENDSESSION if wp.0 != 0 => emit(ShellEvent::SessionEnding),

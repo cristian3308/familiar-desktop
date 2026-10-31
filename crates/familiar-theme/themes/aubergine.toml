@@ -1,0 +1,25 @@
+[meta]
+name = "Aubergine"
+author = "Familiar Core"
+
+[colors]
+background_tint = "#2A0F24E6"
+accent = "#FF7A59"
+text_primary = "#FFF1EC"
+text_secondary = "#C4A0B5"
+border_glow = "#FF7A5940"
+island_background = "#150612FF"
+dot_off = "#FFFFFF14"
+bar_tint = "#2A0F244D"
+
+[metrics]
+dock_icon_size = 44
+dock_magnification = 1.5
+corner_radius = 18
+top_bar_height = 32
+blur_type = "Acrylic"
+
+[cursor]
+custom_scheme = false
+ripple_on_click = true
+shake_to_find = true

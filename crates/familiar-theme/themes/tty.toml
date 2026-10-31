@@ -1,0 +1,25 @@
+[meta]
+name = "TTY"
+author = "Familiar Core"
+
+[colors]
+background_tint = "#000000F2"
+accent = "#33FF66"
+text_primary = "#C8FFD4"
+text_secondary = "#4FA866"
+border_glow = "#33FF6640"
+island_background = "#000000FF"
+dot_off = "#33FF661A"
+bar_tint = "#00000080"
+
+[metrics]
+dock_icon_size = 40
+dock_magnification = 1.35
+corner_radius = 4
+top_bar_height = 32
+blur_type = "None"
+
+[cursor]
+custom_scheme = false
+ripple_on_click = true
+shake_to_find = true

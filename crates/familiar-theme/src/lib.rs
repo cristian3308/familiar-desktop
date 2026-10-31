@@ -5,6 +5,7 @@
 //! Base64 of the TOML.
 
 mod color;
+pub mod palette;
 #[cfg(feature = "watch")]
 mod watch;
 
@@ -30,6 +31,16 @@ pub const BUILTIN: &[(&str, &str)] = &[
     ("graphite", include_str!("../themes/graphite.toml")),
     ("wine", include_str!("../themes/wine.toml")),
     ("paper", include_str!("../themes/paper.toml")),
+    ("familiar-classic", include_str!("../themes/familiar-classic.toml")),
+    ("orbit", include_str!("../themes/orbit.toml")),
+    ("echo", include_str!("../themes/echo.toml")),
+    ("orchid", include_str!("../themes/orchid.toml")),
+    ("soft", include_str!("../themes/soft.toml")),
+    ("nature", include_str!("../themes/nature.toml")),
+    ("cobalt", include_str!("../themes/cobalt.toml")),
+    ("aubergine", include_str!("../themes/aubergine.toml")),
+    ("harbor", include_str!("../themes/harbor.toml")),
+    ("tty", include_str!("../themes/tty.toml")),
 ];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -224,6 +235,21 @@ mod tests {
             Theme::builtin(stem).unwrap();
         }
         assert_eq!(Theme::default(), Theme::builtin("ember-dark").unwrap());
+    }
+
+    #[test]
+    fn all_builtins_are_distinct_and_share() {
+        assert_eq!(BUILTIN.len(), 18);
+        let mut names = Vec::new();
+        for (stem, _) in BUILTIN {
+            let t = Theme::builtin(stem).unwrap();
+            assert_ne!(t.meta.name, "Untitled", "{stem} has no name");
+            assert_eq!(Theme::from_share_code(&t.to_share_code().unwrap()).unwrap(), t, "{stem}");
+            names.push(t.meta.name);
+        }
+        names.sort();
+        names.dedup();
+        assert_eq!(names.len(), BUILTIN.len());
     }
 
     #[test]

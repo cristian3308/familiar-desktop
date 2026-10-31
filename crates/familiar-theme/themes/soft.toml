@@ -1,0 +1,25 @@
+[meta]
+name = "Soft"
+author = "Familiar Core"
+
+[colors]
+background_tint = "#F6F1EDE6"
+accent = "#FF7E9D"
+text_primary = "#2B2626"
+text_secondary = "#7D7373"
+border_glow = "#0000001A"
+island_background = "#141212FF"
+dot_off = "#0000001A"
+bar_tint = "#FFFFFF66"
+
+[metrics]
+dock_icon_size = 46
+dock_magnification = 1.45
+corner_radius = 24
+top_bar_height = 32
+blur_type = "Mica"
+
+[cursor]
+custom_scheme = false
+ripple_on_click = true
+shake_to_find = true

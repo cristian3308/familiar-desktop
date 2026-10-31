@@ -1,0 +1,92 @@
+// Wallpaper transition: the next wallpaper is revealed over the current one,
+// then Windows' own wallpaper is switched underneath and this window hides.
+// Click-through and kept at the bottom of the z-order, above the desktop.
+export component WallpaperWindow inherits Window {
+    title: "Familiar Wallpaper";
+    no-frame: true;
+    background: transparent;
+
+    in property <image> picture;
+    // 0 = hidden, 1 = fully revealed.
+    in property <float> progress;
+    // 0 fade, 1 circle, 2 wipe, 3 dots.
+    in property <int> mode;
+
+    property <float> p: max(0, min(1, root.progress));
+
+    // Fade.
+    if root.mode == 0: Image {
+        width: root.width;
+        height: root.height;
+        source: root.picture;
+        image-fit: fill;
+        opacity: root.p;
+    }
+
+    // Circle: horizontal bands clipped to the chord of a growing circle.
+    if root.mode == 1: Rectangle {
+        property <int> bands: 72;
+        property <length> band: root.height / self.bands;
+        property <length> radius: sqrt(root.width * root.width / 1px / 1px + root.height * root.height / 1px / 1px) * 1px / 2 * root.p;
+        for i in 72: Rectangle {
+            property <length> dy: (i + 0.5) * parent.band - root.height / 2;
+            property <length> half: parent.radius > abs(self.dy) ? sqrt(parent.radius * parent.radius / 1px / 1px - self.dy * self.dy / 1px / 1px) * 1px : 0px;
+            x: root.width / 2 - self.half;
+            y: i * parent.band;
+            width: self.half * 2;
+            height: parent.band + 1px;
+            clip: true;
+            Image {
+                x: -parent.x;
+                y: -parent.y;
+                width: root.width;
+                height: root.height;
+                source: root.picture;
+                image-fit: fill;
+            }
+        }
+    }
+
+    // Wipe: left to right with a soft leading edge.
+    if root.mode == 2: Rectangle {
+        x: 0;
+        width: root.width * root.p;
+        height: root.height;
+        clip: true;
+        Image {
+            x: 0;
+            width: root.width;
+            height: root.height;
+            source: root.picture;
+            image-fit: fill;
+        }
+    }
+
+    // Dots: a grid of squares that open one after another, diagonally.
+    if root.mode == 3: Rectangle {
+        property <int> cols: 16;
+        property <int> rows: 9;
+        property <length> cw: root.width / self.cols;
+        property <length> ch: root.height / self.rows;
+        for i in 144: Rectangle {
+            property <int> cx: mod(i, 16);
+            property <int> cy: floor(i / 16);
+            // Each cell starts a little later than its upper-left neighbour.
+            property <float> delay: (self.cx + self.cy) / 24 * 0.55;
+            property <float> k: max(0, min(1, (root.p - self.delay) / 0.45));
+            x: (self.cx + 0.5) * parent.cw - parent.cw * self.k / 2;
+            y: (self.cy + 0.5) * parent.ch - parent.ch * self.k / 2;
+            width: parent.cw * self.k + 1px;
+            height: parent.ch * self.k + 1px;
+            clip: true;
+            Image {
+                x: -parent.x;
+                y: -parent.y;
+                width: root.width;
+                height: root.height;
+                source: root.picture;
+                image-fit: fill;
+            }
+        }
+    }
+}

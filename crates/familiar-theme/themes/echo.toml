@@ -1,0 +1,25 @@
+[meta]
+name = "Echo"
+author = "Familiar Core"
+
+[colors]
+background_tint = "#0E1719E6"
+accent = "#2EE6C5"
+text_primary = "#E8FFFB"
+text_secondary = "#8FB3AE"
+border_glow = "#2EE6C533"
+island_background = "#020909FF"
+dot_off = "#FFFFFF14"
+bar_tint = "#0E17194D"
+
+[metrics]
+dock_icon_size = 44
+dock_magnification = 1.5
+corner_radius = 18
+top_bar_height = 32
+blur_type = "Acrylic"
+
+[cursor]
+custom_scheme = false
+ripple_on_click = true
+shake_to_find = true

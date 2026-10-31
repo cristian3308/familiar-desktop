@@ -1,0 +1,25 @@
+[meta]
+name = "Nature"
+author = "Familiar Core"
+
+[colors]
+background_tint = "#0F1A12E6"
+accent = "#7BD389"
+text_primary = "#ECF8EE"
+text_secondary = "#93AC97"
+border_glow = "#7BD38933"
+island_background = "#060C07FF"
+dot_off = "#FFFFFF14"
+bar_tint = "#0F1A124D"
+
+[metrics]
+dock_icon_size = 44
+dock_magnification = 1.5
+corner_radius = 18
+top_bar_height = 32
+blur_type = "Acrylic"
+
+[cursor]
+custom_scheme = false
+ripple_on_click = true
+shake_to_find = true

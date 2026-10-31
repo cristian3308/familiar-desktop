@@ -34,6 +34,7 @@ use crate::launcher::Launcher;
 use crate::lock::Lock;
 use crate::settings::Settings;
 use crate::topbar::TopBar;
+use crate::wallfx::WallpaperFx;
 use crate::widgets::Widgets;
 use crate::{logger, ui};
 
@@ -97,6 +98,7 @@ pub struct App {
     pub lock: Lock,
     pub fx: RefCell<Option<CursorFx>>,
     pub window_fx: WindowFx,
+    pub wallpaper_fx: WallpaperFx,
     pub audio: AudioPipe,
 
     services: RefCell<Services>,
@@ -136,6 +138,7 @@ impl App {
             widgets,
             fx: RefCell::new(None),
             window_fx: WindowFx::new(),
+            wallpaper_fx: WallpaperFx::new()?,
             audio: AudioPipe::new(),
             monitor: Cell::new(primary_monitor()),
             cfg: RefCell::new(cfg),
@@ -208,9 +211,12 @@ impl App {
         if hotkey != "win" && launcher_hotkey.is_none() {
             log::warn!("invalid launcher hotkey {hotkey:?}");
         }
-        s.shell = ShellWatcher::spawn(ShellWatcherOptions { launcher_hotkey }, |ev| post(move |a| a.on_shell(ev)))
-            .map_err(|e| log::error!("shell watcher: {e}"))
-            .ok();
+        let wallpaper_hotkey = self.cfg.borrow().wallpaper.alt_w;
+        s.shell = ShellWatcher::spawn(ShellWatcherOptions { launcher_hotkey, wallpaper_hotkey }, |ev| {
+            post(move |a| a.on_shell(ev))
+        })
+        .map_err(|e| log::error!("shell watcher: {e}"))
+        .ok();
         s.privacy = PrivacyWatcher::spawn(|p| post(move |a| a.on_privacy(p)))
             .map_err(|e| log::warn!("privacy watcher: {e}"))
             .ok();
@@ -446,6 +452,7 @@ impl App {
                 self.quit();
             }
             ShellEvent::LauncherHotkey => self.launcher.toggle(self),
+            ShellEvent::WallpaperHotkey => self.wallpaper_fx.next(self),
             ShellEvent::ExplorerRestarted => {
                 log::info!("Explorer restarted; re-registering");
                 if self.cfg.borrow().hide_taskbar {

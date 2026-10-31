@@ -1,0 +1,25 @@
+[meta]
+name = "Harbor"
+author = "Familiar Core"
+
+[colors]
+background_tint = "#132029E6"
+accent = "#FFB454"
+text_primary = "#F2F6F8"
+text_secondary = "#93A7B3"
+border_glow = "#FFB45433"
+island_background = "#081218FF"
+dot_off = "#FFFFFF14"
+bar_tint = "#1320294D"
+
+[metrics]
+dock_icon_size = 44
+dock_magnification = 1.5
+corner_radius = 18
+top_bar_height = 32
+blur_type = "Acrylic"
+
+[cursor]
+custom_scheme = false
+ripple_on_click = true
+shake_to_find = true
