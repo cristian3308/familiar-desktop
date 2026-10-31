@@ -198,7 +198,7 @@ export component ControlCenterWindow inherits Window {
             alignment: start;
 
             Label {
-                text: "CONTROL CENTER";
+                text: @tr("CONTROL CENTER");
                 font-size: 10px;
                 height: 16px;
             }
@@ -207,8 +207,8 @@ export component ControlCenterWindow inherits Window {
                 spacing: 10px;
                 Toggle {
                     glyph: "\u{E701}";
-                    title: "Wi-Fi";
-                    detail: !root.wifi-available ? "No disponible" : root.wifi-on ? (root.network != "" ? root.network : "Activado") : "Desactivado";
+                    title: @tr("Wi-Fi");
+                    detail: !root.wifi-available ? @tr("No disponible") : root.wifi-on ? (root.network != "" ? root.network : @tr("Activado")) : @tr("Desactivado");
                     on: root.wifi-on;
                     available: root.wifi-available;
                     clicked => {
@@ -217,8 +217,8 @@ export component ControlCenterWindow inherits Window {
                 }
                 Toggle {
                     glyph: "\u{E702}";
-                    title: "Bluetooth";
-                    detail: !root.bt-available ? "No disponible" : root.bt-on ? "Activado" : "Desactivado";
+                    title: @tr("Bluetooth");
+                    detail: !root.bt-available ? @tr("No disponible") : root.bt-on ? @tr("Activado") : @tr("Desactivado");
                     on: root.bt-on;
                     available: root.bt-available;
                     clicked => {
@@ -291,7 +291,7 @@ export component ControlCenterWindow inherits Window {
 
             if root.has-brightness: Section {
                 Text {
-                    text: "Pantalla";
+                    text: @tr("Pantalla");
                     color: white;
                     font-size: 13px;
                     font-weight: 600;
@@ -308,7 +308,7 @@ export component ControlCenterWindow inherits Window {
             Section {
                 HorizontalLayout {
                     Text {
-                        text: "Sonido";
+                        text: @tr("Sonido");
                         color: white;
                         font-size: 13px;
                         font-weight: 600;
@@ -317,7 +317,7 @@ export component ControlCenterWindow inherits Window {
                         horizontal-stretch: 1;
                     }
                     Text {
-                        text: root.muted ? "Silencio" : round(root.volume * 100) + " %";
+                        text: root.muted ? @tr("Silencio") : round(root.volume * 100) + " %";
                         color: #ffffff99;
                         font-size: 11px;
                         vertical-alignment: center;
@@ -358,7 +358,7 @@ export component ControlCenterWindow inherits Window {
             Section {
                 HorizontalLayout {
                     Text {
-                        text: "Apariencia";
+                        text: @tr("Apariencia");
                         color: white;
                         font-size: 13px;
                         font-weight: 600;
@@ -382,7 +382,7 @@ export component ControlCenterWindow inherits Window {
                             background: #ffffff33;
                             animate x { duration: 180ms; easing: ease-out; }
                         }
-                        for m[i] in ["Claro", "Oscuro"]: Text {
+                        for m[i] in [@tr("Claro"), @tr("Oscuro")]: Text {
                             x: i * parent.width / 2;
                             width: parent.width / 2;
                             height: parent.height;
@@ -407,14 +407,14 @@ export component ControlCenterWindow inherits Window {
                 spacing: 10px;
                 Link {
                     glyph: "\u{E72E}";
-                    text: "Bloquear";
+                    text: @tr("Bloquear");
                     clicked => {
                         root.lock();
                     }
                 }
                 Link {
                     glyph: "\u{E790}";
-                    text: "Familiar";
+                    text: @tr("Familiar");
                     clicked => {
                         root.open-familiar-settings();
                     }
@@ -422,7 +422,7 @@ export component ControlCenterWindow inherits Window {
             }
             Link {
                 glyph: "\u{E713}";
-                text: "Configuración del sistema";
+                text: @tr("Configuración del sistema");
                 clicked => {
                     root.open-system-settings();
                 }

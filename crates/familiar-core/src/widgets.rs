@@ -478,6 +478,21 @@ impl Widgets {
         self.render_visualizer(app, bands);
     }
 
+    /// Calm mode: stop (or resume) the idle dot-matrix animation.
+    pub fn set_animating(&self, on: bool) {
+        if !on {
+            self.idle_anim.stop();
+        } else if !self.idle_anim.running() && (self.has(Kind::Signal) || self.has(Kind::Visualizer)) {
+            self.idle_anim.start(TimerMode::Repeated, IDLE_FRAME, || {
+                with_app(|a| {
+                    if let Some(w) = &a.widgets {
+                        w.idle_frame(a);
+                    }
+                })
+            });
+        }
+    }
+
     /// Without audio frames, keep the animations alive on a slow timer.
     fn idle_frame(&self, app: &App) {
         if self.last_audio.get().is_some_and(|t| t.elapsed() < IDLE_FRAME * 2) {

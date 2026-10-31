@@ -28,6 +28,8 @@ pub struct AppConfig {
     pub launcher: LauncherConfig,
     pub calm: CalmConfig,
     pub wallpaper: WallpaperConfig,
+    /// UI language: es, en, fr or ru.
+    pub language: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -106,14 +108,120 @@ pub struct LauncherConfig {
     pub max_results: usize,
 }
 
+/// What "Calm by design" does in one scenario.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CalmRule {
+    /// Everything keeps running.
+    #[default]
+    Keep,
+    /// Stop audio capture and the dot-matrix animations.
+    PauseVisualizer,
+    /// Also hide the desktop widgets (and, for full-screen apps, every
+    /// surface: top bar, dock and island).
+    PauseDesktop,
+}
+
+impl CalmRule {
+    pub fn next(self) -> Self {
+        match self {
+            CalmRule::Keep => CalmRule::PauseVisualizer,
+            CalmRule::PauseVisualizer => CalmRule::PauseDesktop,
+            CalmRule::PauseDesktop => CalmRule::Keep,
+        }
+    }
+
+    /// Spanish label; translated with `i18n::t`.
+    pub fn label(self) -> &'static str {
+        match self {
+            CalmRule::Keep => "Seguir",
+            CalmRule::PauseVisualizer => "Pausar visualizador",
+            CalmRule::PauseDesktop => "Pausar escritorio",
+        }
+    }
+}
+
+/// The four situations Calm mode can react to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CalmScenario {
+    /// Any app window is in front of the desktop.
+    Focused,
+    /// The window in front is maximised.
+    Maximized,
+    /// A full-screen app or game is in front.
+    Fullscreen,
+    /// The laptop runs on battery (or battery saver is on).
+    Battery,
+}
+
+impl CalmScenario {
+    pub const ALL: [CalmScenario; 4] =
+        [CalmScenario::Focused, CalmScenario::Maximized, CalmScenario::Fullscreen, CalmScenario::Battery];
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CalmConfig {
-    /// Hide every surface and stop audio capture while a full-screen app
-    /// or game is in front.
-    pub pause_on_fullscreen: bool,
-    /// Stop the audio visualiser while battery saver is on.
-    pub pause_on_battery_saver: bool,
+    pub focused: CalmRule,
+    pub maximized: CalmRule,
+    pub fullscreen: CalmRule,
+    pub battery: CalmRule,
+}
+
+/// What is true right now, as seen by the shell.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CalmInputs {
+    pub focused: bool,
+    pub maximized: bool,
+    pub fullscreen: bool,
+    pub on_battery: bool,
+}
+
+/// What to pause, resolved from every active scenario.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CalmState {
+    /// Hide top bar, dock, island and widgets; drop input hooks.
+    pub hide_all: bool,
+    /// Hide the desktop widgets.
+    pub pause_desktop: bool,
+    /// Stop audio capture and dot-matrix animation.
+    pub pause_visualizer: bool,
+}
+
+impl CalmConfig {
+    pub fn rule(&self, s: CalmScenario) -> CalmRule {
+        match s {
+            CalmScenario::Focused => self.focused,
+            CalmScenario::Maximized => self.maximized,
+            CalmScenario::Fullscreen => self.fullscreen,
+            CalmScenario::Battery => self.battery,
+        }
+    }
+
+    pub fn rule_mut(&mut self, s: CalmScenario) -> &mut CalmRule {
+        match s {
+            CalmScenario::Focused => &mut self.focused,
+            CalmScenario::Maximized => &mut self.maximized,
+            CalmScenario::Fullscreen => &mut self.fullscreen,
+            CalmScenario::Battery => &mut self.battery,
+        }
+    }
+
+    /// The strictest rule of the scenarios that apply wins.
+    pub fn evaluate(&self, now: CalmInputs) -> CalmState {
+        let active = [
+            (now.focused, self.focused),
+            (now.maximized, self.maximized),
+            (now.fullscreen, self.fullscreen),
+            (now.on_battery, self.battery),
+        ];
+        let level = active.iter().filter(|(on, _)| *on).map(|(_, r)| *r).max().unwrap_or(CalmRule::Keep);
+        CalmState {
+            hide_all: now.fullscreen && self.fullscreen == CalmRule::PauseDesktop,
+            pause_desktop: level == CalmRule::PauseDesktop,
+            pause_visualizer: level >= CalmRule::PauseVisualizer,
+        }
+    }
 }
 
 impl Default for AppConfig {
@@ -132,6 +240,7 @@ impl Default for AppConfig {
             launcher: LauncherConfig::default(),
             calm: CalmConfig::default(),
             wallpaper: WallpaperConfig::default(),
+            language: "es".into(),
         }
     }
 }
@@ -181,7 +290,12 @@ impl Default for LauncherConfig {
 
 impl Default for CalmConfig {
     fn default() -> Self {
-        Self { pause_on_fullscreen: true, pause_on_battery_saver: true }
+        Self {
+            focused: CalmRule::Keep,
+            maximized: CalmRule::Keep,
+            fullscreen: CalmRule::PauseDesktop,
+            battery: CalmRule::PauseVisualizer,
+        }
     }
 }
 
@@ -360,5 +474,30 @@ mod tests {
     fn hash_is_stable_and_case_insensitive() {
         assert_eq!(stable_hash("C:\\App.exe"), stable_hash("c:\\app.exe"));
         assert_eq!(stable_hash(""), 0xcbf2_9ce4_8422_2325);
+    }
+
+    #[test]
+    fn calm_strictest_rule_wins() {
+        use super::{CalmConfig, CalmInputs, CalmRule, CalmState};
+        let cfg = CalmConfig::default();
+        assert_eq!(cfg.evaluate(CalmInputs::default()), CalmState::default());
+        // Defaults: a game hides everything; battery only pauses the visualizer.
+        let game = cfg.evaluate(CalmInputs { focused: true, fullscreen: true, ..Default::default() });
+        assert!(game.hide_all && game.pause_desktop && game.pause_visualizer);
+        let laptop = cfg.evaluate(CalmInputs { on_battery: true, ..Default::default() });
+        assert_eq!(laptop, CalmState { hide_all: false, pause_desktop: false, pause_visualizer: true });
+        // A stricter rule elsewhere never hides the bar outside full screen.
+        let strict = CalmConfig { maximized: CalmRule::PauseDesktop, ..cfg };
+        let s = strict.evaluate(CalmInputs { focused: true, maximized: true, ..Default::default() });
+        assert!(!s.hide_all && s.pause_desktop && s.pause_visualizer);
+    }
+
+    #[test]
+    fn calm_rules_cycle_and_serialise() {
+        use super::CalmRule;
+        assert_eq!(CalmRule::Keep.next().next().next(), CalmRule::Keep);
+        let cfg: super::AppConfig = toml::from_str("[calm]\nfocused = \"pause_visualizer\"").unwrap();
+        assert_eq!(cfg.calm.focused, CalmRule::PauseVisualizer);
+        assert_eq!(cfg.calm.fullscreen, CalmRule::PauseDesktop);
     }
 }

@@ -1,0 +1,331 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: ru\n"
+
+msgid "CONTROL CENTER"
+msgstr "ПУНКТ УПРАВЛЕНИЯ"
+
+msgid "Wi-Fi"
+msgstr "Wi-Fi"
+
+msgid "No disponible"
+msgstr "Недоступно"
+
+msgid "Activado"
+msgstr "Вкл."
+
+msgid "Desactivado"
+msgstr "Выкл."
+
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
+msgid "Pantalla"
+msgstr "Экран"
+
+msgid "Sonido"
+msgstr "Звук"
+
+msgid "Silencio"
+msgstr "Без звука"
+
+msgid "Apariencia"
+msgstr "Оформление"
+
+msgid "Claro"
+msgstr "Светлая"
+
+msgid "Oscuro"
+msgstr "Тёмная"
+
+msgid "Bloquear"
+msgstr "Блокировка"
+
+msgid "Familiar"
+msgstr "Familiar"
+
+msgid "Configuración del sistema"
+msgstr "Параметры системы"
+
+msgid " VENTANA"
+msgstr " ОКНО"
+
+msgid " VENTANAS"
+msgstr " ОКНА"
+
+msgid "REPRODUCIENDO"
+msgstr "ИГРАЕТ"
+
+msgid "EN PAUSA"
+msgstr "ПАУЗА"
+
+msgid "SIN MÚSICA"
+msgstr "НЕТ МУЗЫКИ"
+
+msgid "FOCUS "
+msgstr "ФОКУС "
+
+msgid "FOCUS"
+msgstr "ФОКУС"
+
+msgid "Nada reproduciéndose"
+msgstr "Ничего не играет"
+
+msgid "BUSCAR"
+msgstr "ПОИСК"
+
+msgid "= 2+2 CALCULA"
+msgstr "= 2+2 СЧИТАЕТ"
+
+msgid "Buscar en recientes…"
+msgstr "Поиск в недавних…"
+
+msgid "Filtrar apps…"
+msgstr "Фильтр приложений…"
+
+msgid "Abrir una app…"
+msgstr "Открыть приложение…"
+
+msgid "APPS"
+msgstr "ПРИЛОЖЕНИЯ"
+
+msgid "RECIENTES"
+msgstr "НЕДАВНИЕ"
+
+msgid "TAB CAMBIA"
+msgstr "TAB — ВКЛАДКИ"
+
+msgid "SIN ARCHIVOS RECIENTES"
+msgstr "НЕТ НЕДАВНИХ ФАЙЛОВ"
+
+msgid "SIN RESULTADOS"
+msgstr "НИЧЕГО НЕ НАЙДЕНО"
+
+msgid "↑↓ NAVEGAR"
+msgstr "↑↓ ВЫБОР"
+
+msgid "↵ ABRIR"
+msgstr "↵ ОТКРЫТЬ"
+
+msgid "ESC CERRAR"
+msgstr "ESC ЗАКРЫТЬ"
+
+msgid "FAMILIAR"
+msgstr "FAMILIAR"
+
+msgid "Haz clic o pulsa una tecla para entrar"
+msgstr "Щёлкните или нажмите клавишу, чтобы войти"
+
+msgid "CARGANDO · "
+msgstr "ЗАРЯДКА · "
+
+msgid "BATERÍA · "
+msgstr "БАТАРЕЯ · "
+
+msgid "WIN+L BLOQUEA CON CONTRASEÑA"
+msgstr "WIN+L — БЛОКИРОВКА С ПАРОЛЕМ"
+
+msgid "Ajustes de Familiar"
+msgstr "Настройки Familiar"
+
+msgid "Dock"
+msgstr "Док"
+
+msgid "Widgets"
+msgstr "Виджеты"
+
+msgid "General"
+msgstr "Общие"
+
+msgid "Calma e idioma"
+msgstr "Покой и язык"
+
+msgid "TEMA"
+msgstr "ТЕМА"
+
+msgid "Aa"
+msgstr "Aa"
+
+msgid "Surprise me"
+msgstr "Удиви меня"
+
+msgid "Tema desde el fondo"
+msgstr "Тема из обоев"
+
+msgid "COLOR DE ACENTO"
+msgstr "АКЦЕНТНЫЙ ЦВЕТ"
+
+msgid "BARRA SUPERIOR"
+msgstr "ВЕРХНЯЯ ПАНЕЛЬ"
+
+msgid "Opacidad"
+msgstr "Непрозрачность"
+
+msgid "Tamaño de los iconos"
+msgstr "Размер значков"
+
+msgid " px"
+msgstr " пикс."
+
+msgid "Ampliación"
+msgstr "Увеличение"
+
+msgid "Iconos estilo macOS"
+msgstr "Значки в стиле macOS"
+
+msgid "Explorador, Configuración y Terminal"
+msgstr "Проводник, Параметры и Терминал"
+
+msgid "Icono de Archivos"
+msgstr "Значок «Файлы»"
+
+msgid "Classic, Dot F, Mono, Theme o Glass"
+msgstr "Classic, Dot F, Mono, Theme или Glass"
+
+msgid "Ventanas al pasar el ratón"
+msgstr "Окна при наведении"
+
+msgid "Lista las ventanas abiertas de la app"
+msgstr "Список открытых окон приложения"
+
+msgid "Mostrar apps abiertas"
+msgstr "Показывать открытые приложения"
+
+msgid "Calendario"
+msgstr "Календарь"
+
+msgid "Clima"
+msgstr "Погода"
+
+msgid "Usa internet (Open-Meteo)"
+msgstr "Использует интернет (Open-Meteo)"
+
+msgid "Sistema"
+msgstr "Система"
+
+msgid "CPU, memoria y batería"
+msgstr "ЦП, память и батарея"
+
+msgid "SIGNAL/01"
+msgstr "SIGNAL/01"
+
+msgid "Matriz de puntos: pulsa el modo para cambiarlo"
+msgstr "Точечная матрица: нажмите режим, чтобы сменить"
+
+msgid "Reloj de puntos"
+msgstr "Точечные часы"
+
+msgid "Visualizador"
+msgstr "Визуализатор"
+
+msgid "Seis escenas; toca el widget para cambiar"
+msgstr "Шесть сцен; нажмите на виджет для смены"
+
+msgid "Reloj analógico"
+msgstr "Аналоговые часы"
+
+msgid "Música"
+msgstr "Музыка"
+
+msgid "Carátula y controles"
+msgstr "Обложка и управление"
+
+msgid "CIUDAD DEL CLIMA"
+msgstr "ГОРОД ДЛЯ ПОГОДЫ"
+
+msgid "Pulsa Intro para guardar la ciudad."
+msgstr "Нажмите Enter, чтобы сохранить город."
+
+msgid "CALM BY DESIGN"
+msgstr "СПОКОЙСТВИЕ ПО УМОЛЧАНИЮ"
+
+msgid "Ventana en primer plano"
+msgstr "Активное окно"
+
+msgid "Ventana maximizada"
+msgstr "Развёрнутое окно"
+
+msgid "Pantalla completa o juego"
+msgstr "Полный экран или игра"
+
+msgid "Portátil con batería"
+msgstr "Ноутбук от батареи"
+
+msgid "Se aplica la regla más estricta de las situaciones activas."
+msgstr "Действует самое строгое правило из активных ситуаций."
+
+msgid "IDIOMA"
+msgstr "ЯЗЫК"
+
+msgid "Idioma de la interfaz"
+msgstr "Язык интерфейса"
+
+msgid "También desde la barra superior"
+msgstr "Также из верхней панели"
+
+msgid "Ocultar la barra de tareas de Windows"
+msgstr "Скрывать панель задач Windows"
+
+msgid "Animación al abrir y minimizar"
+msgstr "Анимация открытия и сворачивания"
+
+msgid "Las ventanas salen del Dock y vuelven a él"
+msgstr "Окна вылетают из Дока и возвращаются в него"
+
+msgid "Efecto genio al minimizar"
+msgstr "Эффект «джинн» при сворачивании"
+
+msgid "Apagado: la ventana se encoge suavemente"
+msgstr "Выкл.: окно плавно уменьшается"
+
+msgid "Pantalla de bienvenida al iniciar"
+msgstr "Экран приветствия при запуске"
+
+msgid "Splash y pantalla de bloqueo (solo visual)"
+msgstr "Заставка и экран блокировки (только вид)"
+
+msgid "Alt + W cambia el fondo"
+msgstr "Alt + W меняет обои"
+
+msgid "Recorre la carpeta del fondo actual (al reiniciar)"
+msgstr "Перебирает папку текущих обоев (после перезапуска)"
+
+msgid "Abrir al iniciar Windows"
+msgstr "Запускать вместе с Windows"
+
+msgid "Reiniciar Familiar"
+msgstr "Перезапустить Familiar"
+
+msgid "Salir de Familiar"
+msgstr "Выйти из Familiar"
+
+msgid "Algunos cambios se aplican al reiniciar."
+msgstr "Некоторые изменения вступят в силу после перезапуска."
+
+msgid "Reiniciar ahora"
+msgstr "Перезапустить сейчас"
+
+msgid "Escritorio"
+msgstr "Рабочий стол"
+
+msgid "Cargando…"
+msgstr "Загрузка…"
+
+msgid "CPU"
+msgstr "ЦП"
+
+msgid "MEMORIA"
+msgstr "ПАМЯТЬ"
+
+msgid "BATERÍA"
+msgstr "БАТАРЕЯ"
+
+msgid "AC"
+msgstr "СЕТЬ"
+
+msgid "cargando"
+msgstr "заряжается"
+
+msgid "MÚSICA"
+msgstr "МУЗЫКА"

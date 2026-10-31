@@ -1,0 +1,331 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: fr\n"
+
+msgid "CONTROL CENTER"
+msgstr "CENTRE DE CONTRÔLE"
+
+msgid "Wi-Fi"
+msgstr "Wi-Fi"
+
+msgid "No disponible"
+msgstr "Indisponible"
+
+msgid "Activado"
+msgstr "Activé"
+
+msgid "Desactivado"
+msgstr "Désactivé"
+
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
+msgid "Pantalla"
+msgstr "Écran"
+
+msgid "Sonido"
+msgstr "Son"
+
+msgid "Silencio"
+msgstr "Muet"
+
+msgid "Apariencia"
+msgstr "Apparence"
+
+msgid "Claro"
+msgstr "Clair"
+
+msgid "Oscuro"
+msgstr "Sombre"
+
+msgid "Bloquear"
+msgstr "Verrouiller"
+
+msgid "Familiar"
+msgstr "Familiar"
+
+msgid "Configuración del sistema"
+msgstr "Réglages système"
+
+msgid " VENTANA"
+msgstr " FENÊTRE"
+
+msgid " VENTANAS"
+msgstr " FENÊTRES"
+
+msgid "REPRODUCIENDO"
+msgstr "LECTURE"
+
+msgid "EN PAUSA"
+msgstr "EN PAUSE"
+
+msgid "SIN MÚSICA"
+msgstr "PAS DE MUSIQUE"
+
+msgid "FOCUS "
+msgstr "FOCUS "
+
+msgid "FOCUS"
+msgstr "FOCUS"
+
+msgid "Nada reproduciéndose"
+msgstr "Rien en lecture"
+
+msgid "BUSCAR"
+msgstr "RECHERCHE"
+
+msgid "= 2+2 CALCULA"
+msgstr "= 2+2 CALCULE"
+
+msgid "Buscar en recientes…"
+msgstr "Rechercher dans les récents…"
+
+msgid "Filtrar apps…"
+msgstr "Filtrer les apps…"
+
+msgid "Abrir una app…"
+msgstr "Ouvrir une app…"
+
+msgid "APPS"
+msgstr "APPS"
+
+msgid "RECIENTES"
+msgstr "RÉCENTS"
+
+msgid "TAB CAMBIA"
+msgstr "TAB CHANGE"
+
+msgid "SIN ARCHIVOS RECIENTES"
+msgstr "AUCUN FICHIER RÉCENT"
+
+msgid "SIN RESULTADOS"
+msgstr "AUCUN RÉSULTAT"
+
+msgid "↑↓ NAVEGAR"
+msgstr "↑↓ NAVIGUER"
+
+msgid "↵ ABRIR"
+msgstr "↵ OUVRIR"
+
+msgid "ESC CERRAR"
+msgstr "ÉCHAP FERMER"
+
+msgid "FAMILIAR"
+msgstr "FAMILIAR"
+
+msgid "Haz clic o pulsa una tecla para entrar"
+msgstr "Cliquez ou appuyez sur une touche pour entrer"
+
+msgid "CARGANDO · "
+msgstr "EN CHARGE · "
+
+msgid "BATERÍA · "
+msgstr "BATTERIE · "
+
+msgid "WIN+L BLOQUEA CON CONTRASEÑA"
+msgstr "WIN+L VERROUILLE AVEC MOT DE PASSE"
+
+msgid "Ajustes de Familiar"
+msgstr "Réglages de Familiar"
+
+msgid "Dock"
+msgstr "Dock"
+
+msgid "Widgets"
+msgstr "Widgets"
+
+msgid "General"
+msgstr "Général"
+
+msgid "Calma e idioma"
+msgstr "Calme et langue"
+
+msgid "TEMA"
+msgstr "THÈME"
+
+msgid "Aa"
+msgstr "Aa"
+
+msgid "Surprise me"
+msgstr "Surprends-moi"
+
+msgid "Tema desde el fondo"
+msgstr "Thème du fond d'écran"
+
+msgid "COLOR DE ACENTO"
+msgstr "COULEUR D'ACCENT"
+
+msgid "BARRA SUPERIOR"
+msgstr "BARRE SUPÉRIEURE"
+
+msgid "Opacidad"
+msgstr "Opacité"
+
+msgid "Tamaño de los iconos"
+msgstr "Taille des icônes"
+
+msgid " px"
+msgstr " px"
+
+msgid "Ampliación"
+msgstr "Agrandissement"
+
+msgid "Iconos estilo macOS"
+msgstr "Icônes style macOS"
+
+msgid "Explorador, Configuración y Terminal"
+msgstr "Explorateur, Paramètres et Terminal"
+
+msgid "Icono de Archivos"
+msgstr "Icône Fichiers"
+
+msgid "Classic, Dot F, Mono, Theme o Glass"
+msgstr "Classic, Dot F, Mono, Theme ou Glass"
+
+msgid "Ventanas al pasar el ratón"
+msgstr "Fenêtres au survol"
+
+msgid "Lista las ventanas abiertas de la app"
+msgstr "Liste les fenêtres ouvertes de l'app"
+
+msgid "Mostrar apps abiertas"
+msgstr "Afficher les apps ouvertes"
+
+msgid "Calendario"
+msgstr "Calendrier"
+
+msgid "Clima"
+msgstr "Météo"
+
+msgid "Usa internet (Open-Meteo)"
+msgstr "Utilise Internet (Open-Meteo)"
+
+msgid "Sistema"
+msgstr "Système"
+
+msgid "CPU, memoria y batería"
+msgstr "Processeur, mémoire et batterie"
+
+msgid "SIGNAL/01"
+msgstr "SIGNAL/01"
+
+msgid "Matriz de puntos: pulsa el modo para cambiarlo"
+msgstr "Matrice de points : touchez le mode pour le changer"
+
+msgid "Reloj de puntos"
+msgstr "Horloge à points"
+
+msgid "Visualizador"
+msgstr "Visualiseur"
+
+msgid "Seis escenas; toca el widget para cambiar"
+msgstr "Six scènes ; touchez le widget pour changer"
+
+msgid "Reloj analógico"
+msgstr "Horloge analogique"
+
+msgid "Música"
+msgstr "Musique"
+
+msgid "Carátula y controles"
+msgstr "Pochette et commandes"
+
+msgid "CIUDAD DEL CLIMA"
+msgstr "VILLE DE LA MÉTÉO"
+
+msgid "Pulsa Intro para guardar la ciudad."
+msgstr "Appuyez sur Entrée pour enregistrer la ville."
+
+msgid "CALM BY DESIGN"
+msgstr "CALME PAR CONCEPTION"
+
+msgid "Ventana en primer plano"
+msgstr "Fenêtre au premier plan"
+
+msgid "Ventana maximizada"
+msgstr "Fenêtre agrandie"
+
+msgid "Pantalla completa o juego"
+msgstr "Plein écran ou jeu"
+
+msgid "Portátil con batería"
+msgstr "Portable sur batterie"
+
+msgid "Se aplica la regla más estricta de las situaciones activas."
+msgstr "La règle la plus stricte des situations actives s'applique."
+
+msgid "IDIOMA"
+msgstr "LANGUE"
+
+msgid "Idioma de la interfaz"
+msgstr "Langue de l'interface"
+
+msgid "También desde la barra superior"
+msgstr "Aussi depuis la barre supérieure"
+
+msgid "Ocultar la barra de tareas de Windows"
+msgstr "Masquer la barre des tâches Windows"
+
+msgid "Animación al abrir y minimizar"
+msgstr "Animation à l'ouverture et à la réduction"
+
+msgid "Las ventanas salen del Dock y vuelven a él"
+msgstr "Les fenêtres sortent du Dock et y retournent"
+
+msgid "Efecto genio al minimizar"
+msgstr "Effet génie à la réduction"
+
+msgid "Apagado: la ventana se encoge suavemente"
+msgstr "Désactivé : la fenêtre rétrécit en douceur"
+
+msgid "Pantalla de bienvenida al iniciar"
+msgstr "Écran d'accueil au démarrage"
+
+msgid "Splash y pantalla de bloqueo (solo visual)"
+msgstr "Écran de démarrage et de verrouillage (visuel)"
+
+msgid "Alt + W cambia el fondo"
+msgstr "Alt + W change le fond d'écran"
+
+msgid "Recorre la carpeta del fondo actual (al reiniciar)"
+msgstr "Parcourt le dossier du fond actuel (après redémarrage)"
+
+msgid "Abrir al iniciar Windows"
+msgstr "Ouvrir au démarrage de Windows"
+
+msgid "Reiniciar Familiar"
+msgstr "Redémarrer Familiar"
+
+msgid "Salir de Familiar"
+msgstr "Quitter Familiar"
+
+msgid "Algunos cambios se aplican al reiniciar."
+msgstr "Certains changements s'appliquent au redémarrage."
+
+msgid "Reiniciar ahora"
+msgstr "Redémarrer maintenant"
+
+msgid "Escritorio"
+msgstr "Bureau"
+
+msgid "Cargando…"
+msgstr "Chargement…"
+
+msgid "CPU"
+msgstr "CPU"
+
+msgid "MEMORIA"
+msgstr "MÉMOIRE"
+
+msgid "BATERÍA"
+msgstr "BATTERIE"
+
+msgid "AC"
+msgstr "SECTEUR"
+
+msgid "cargando"
+msgstr "en charge"
+
+msgid "MÚSICA"
+msgstr "MUSIQUE"

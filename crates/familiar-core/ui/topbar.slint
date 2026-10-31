@@ -55,7 +55,7 @@ export component TopBarWindow inherits Window {
     background: transparent;
     default-font-family: Theme.font;
 
-    in property <string> app-name: "Escritorio";
+    in property <string> app-name: @tr("Escritorio");
     in property <string> clock;
     in property <image> clock-dots;
     in property <length> clock-width;
@@ -63,6 +63,8 @@ export component TopBarWindow inherits Window {
     in property <string> meridiem;
     in property <string> date;
     in property <string> layout-code;
+    // Familiar's own UI language (ES, EN, FR, RU).
+    in property <string> ui-lang;
     in property <int> battery: -1;
     in property <bool> charging;
     in property <bool> mic;
@@ -73,6 +75,7 @@ export component TopBarWindow inherits Window {
     callback clock-clicked();
     callback battery-clicked();
     callback layout-clicked();
+    callback lang-clicked();
     callback privacy-clicked();
     callback control-center-clicked();
 
@@ -149,6 +152,29 @@ export component TopBarWindow inherits Window {
                 height: parent.height;
                 text: root.layout-code;
                 color: Theme.text;
+            }
+        }
+        // UI language: a globe and the code; a click cycles the language.
+        if root.ui-lang != "": Item {
+            width: lang-row.preferred-width + 14px;
+            clicked => {
+                root.lang-clicked();
+            }
+            lang-row := HorizontalLayout {
+                x: 7px;
+                height: parent.height;
+                spacing: 4px;
+                Text {
+                    text: "\u{E774}";
+                    font-family: Theme.icons;
+                    font-size: 11px;
+                    color: Theme.text;
+                    vertical-alignment: center;
+                }
+                Label {
+                    text: root.ui-lang;
+                    color: Theme.text;
+                }
             }
         }
         // Control Center: two little switches, like macOS.

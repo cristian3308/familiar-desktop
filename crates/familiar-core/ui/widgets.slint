@@ -344,7 +344,7 @@ export component WidgetWindow inherits Window {
                 VerticalLayout {
                     alignment: start;
                     Text {
-                        text: root.w-ready ? root.w-city : "Clima";
+                        text: root.w-ready ? root.w-city : @tr("Clima");
                         color: Theme.text;
                         font-size: 14px;
                         font-weight: 700;
@@ -371,7 +371,7 @@ export component WidgetWindow inherits Window {
                         day: root.w-day;
                     }
                     Text {
-                        text: root.w-ready ? root.w-desc : "Cargando…";
+                        text: root.w-ready ? root.w-desc : @tr("Cargando…");
                         color: Theme.text;
                         font-size: 12px;
                         font-weight: 600;
@@ -432,22 +432,22 @@ export component WidgetWindow inherits Window {
             padding: 16px;
             spacing: 18px;
             Meter {
-                label: "CPU";
+                label: @tr("CPU");
                 value: root.s-cpu + "%";
                 percent: root.s-cpu;
                 fill: root.s-cpu >= 85 ? #ff453a : Theme.accent;
             }
             Meter {
-                label: "MEMORIA";
+                label: @tr("MEMORIA");
                 value: root.s-ram + "%";
                 detail: root.s-ram-detail;
                 percent: root.s-ram;
                 fill: Theme.accent.with-alpha(0.6);
             }
             Meter {
-                label: "BATERÍA";
-                value: root.s-battery >= 0 ? root.s-battery + "%" : "AC";
-                detail: root.s-charging ? "cargando" : "";
+                label: @tr("BATERÍA");
+                value: root.s-battery >= 0 ? root.s-battery + "%" : @tr("AC");
+                detail: root.s-charging ? @tr("cargando") : "";
                 percent: root.s-battery >= 0 ? root.s-battery : 100;
                 fill: root.s-battery >= 0 && root.s-battery <= 20 && !root.s-charging ? #ff453a : #30d158;
             }
@@ -513,14 +513,14 @@ export component WidgetWindow inherits Window {
                 alignment: center;
                 spacing: 2px;
                 Text {
-                    text: root.np-playing ? "REPRODUCIENDO" : (root.np-has ? "EN PAUSA" : "MÚSICA");
+                    text: root.np-playing ? @tr("REPRODUCIENDO") : (root.np-has ? @tr("EN PAUSA") : @tr("MÚSICA"));
                     font-family: Theme.mono;
                     font-size: 9px;
                     letter-spacing: 1.2px;
                     color: root.np-playing ? Theme.accent : Theme.text-secondary;
                 }
                 Text {
-                    text: root.np-has ? root.np-track : "Nada reproduciéndose";
+                    text: root.np-has ? root.np-track : @tr("Nada reproduciéndose");
                     color: Theme.text;
                     font-size: 14px;
                     font-weight: 700;

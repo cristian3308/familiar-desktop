@@ -195,6 +195,20 @@ pub fn close(hwnd: Hwnd) {
 
 /// True when the foreground app is a D3D exclusive/borderless full-screen
 /// game, a presentation, or simply covers its whole monitor.
+/// Whether an app window (not the desktop, not Familiar) is in front, and
+/// whether it is maximised.
+pub fn foreground_app_state() -> (bool, bool) {
+    let fg = unsafe { GetForegroundWindow() };
+    if fg.is_invalid()
+        || matches!(class_name(fg).as_str(), "Progman" | "WorkerW")
+        || process_id(fg) == unsafe { GetCurrentProcessId() }
+        || !is_app_window(fg)
+    {
+        return (false, false);
+    }
+    (true, unsafe { IsZoomed(fg) }.as_bool())
+}
+
 pub fn foreground_is_fullscreen() -> bool {
     let state: QUERY_USER_NOTIFICATION_STATE = unsafe { SHQueryUserNotificationState() }.unwrap_or_default();
     if state == QUNS_RUNNING_D3D_FULL_SCREEN || state == QUNS_PRESENTATION_MODE {

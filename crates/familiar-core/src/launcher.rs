@@ -21,6 +21,7 @@ use windows::Win32::UI::WindowsAndMessaging::{WA_INACTIVE, WM_ACTIVATE};
 
 use crate::app::{App, with_app};
 use crate::calc;
+use crate::i18n::t;
 use crate::ui::{self, LauncherItem, LauncherWindow};
 
 const WIDTH: f32 = 680.0;
@@ -223,8 +224,8 @@ impl Launcher {
                 icon: slint::Image::default(),
                 glyph: GLYPH_CALC.into(),
                 name: format!("= {text}").into(),
-                detail: "Calculadora".into(),
-                hint: "COPIAR ↵".into(),
+                detail: t("Calculadora").into(),
+                hint: t("COPIAR ↵").into(),
             });
             rows.push(Row::Calc(text));
         }
@@ -280,8 +281,8 @@ impl Launcher {
             icon,
             glyph: if f.is_folder { GLYPH_FOLDER.into() } else { "".into() },
             name: f.name.as_str().into(),
-            detail: (if f.is_folder { "Carpeta reciente" } else { "Archivo reciente" }).into(),
-            hint: "ABRIR ↵".into(),
+            detail: (if f.is_folder { t("Carpeta reciente") } else { t("Archivo reciente") }).into(),
+            hint: t("ABRIR ↵").into(),
         }
     }
 
@@ -324,7 +325,7 @@ fn app_item(a: &AppEntry, detail: String) -> LauncherItem {
         glyph: "".into(),
         name: a.name.as_str().into(),
         detail: detail.into(),
-        hint: "ABRIR ↵".into(),
+        hint: t("ABRIR ↵").into(),
     }
 }
 

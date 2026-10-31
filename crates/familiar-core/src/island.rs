@@ -20,6 +20,7 @@ use windows::Win32::Foundation::POINT;
 use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 
 use crate::app::{App, with_app};
+use crate::i18n::t;
 use crate::ui::{self, IslandWindow};
 
 const EXPANDED_W: f32 = 400.0;
@@ -316,13 +317,13 @@ impl Island {
         let previous = self.known_outputs.replace(Some((names.clone(), default.clone())));
         let Some((old_names, old_default)) = previous else { return };
         if let Some(added) = names.iter().find(|n| !old_names.contains(n)) {
-            self.alert(app, GLYPH_HEADPHONES, &format!("Conectado · {added}"));
+            self.alert(app, GLYPH_HEADPHONES, &format!("{} · {added}", t("Conectado")));
         } else if let Some(gone) = old_names.iter().find(|n| !names.contains(n)) {
-            self.alert(app, GLYPH_SPEAKER_OFF, &format!("Desconectado · {gone}"));
+            self.alert(app, GLYPH_SPEAKER_OFF, &format!("{} · {gone}", t("Desconectado")));
         } else if default != old_default
             && let Some(d) = &default
         {
-            self.alert(app, GLYPH_HEADPHONES, &format!("Salida · {d}"));
+            self.alert(app, GLYPH_HEADPHONES, &format!("{} · {d}", t("Salida")));
         }
     }
 
@@ -358,7 +359,7 @@ impl Island {
             self.ui.set_focus_active(false);
             self.ui.set_focus_text(format_clock(focus_length(app)).into());
             familiar_sys::util::chime();
-            self.alert(app, GLYPH_TIMER, "Focus terminado · tómate un descanso");
+            self.alert(app, GLYPH_TIMER, t("Focus terminado · tómate un descanso"));
         }
     }
 

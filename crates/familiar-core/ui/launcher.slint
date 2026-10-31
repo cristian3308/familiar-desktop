@@ -102,14 +102,14 @@ export component LauncherWindow inherits Window {
                         background: Theme.accent;
                     }
                     Label {
-                        text: "BUSCAR";
+                        text: @tr("BUSCAR");
                         font-size: 10px;
                     }
                     Rectangle {
                         horizontal-stretch: 1;
                     }
                     Label {
-                        text: "= 2+2 CALCULA";
+                        text: @tr("= 2+2 CALCULA");
                         font-size: 9px;
                     }
                 }
@@ -130,7 +130,7 @@ export component LauncherWindow inherits Window {
                             }
                         }
                         if root.query == "": Text {
-                            text: root.tab == 1 ? "Buscar en recientes…" : (root.tab == 2 ? "Filtrar apps…" : "Abrir una app…");
+                            text: root.tab == 1 ? @tr("Buscar en recientes…") : (root.tab == 2 ? @tr("Filtrar apps…") : @tr("Abrir una app…"));
                             font-family: Theme.display;
                             font-size: 26px;
                             color: Theme.text-secondary.with-alpha(0.7);
@@ -145,7 +145,7 @@ export component LauncherWindow inherits Window {
                     height: 24px;
                     spacing: 6px;
                     alignment: start;
-                    for t[i] in ["APPS", "RECIENTES", "A–Z"]: Rectangle {
+                    for t[i] in [@tr("APPS"), @tr("RECIENTES"), "A–Z"]: Rectangle {
                         width: tab-label.preferred-width + 22px;
                         height: 24px;
                         border-radius: 12px;
@@ -172,7 +172,7 @@ export component LauncherWindow inherits Window {
                         horizontal-stretch: 1;
                     }
                     Label {
-                        text: "TAB CAMBIA";
+                        text: @tr("TAB CAMBIA");
                         font-size: 9px;
                         y: 7px;
                     }
@@ -278,7 +278,7 @@ export component LauncherWindow inherits Window {
                         y: 20px;
                         height: 40px;
                         width: parent.width;
-                        text: root.tab == 1 && root.query == "" ? "SIN ARCHIVOS RECIENTES" : "SIN RESULTADOS";
+                        text: root.tab == 1 && root.query == "" ? @tr("SIN ARCHIVOS RECIENTES") : @tr("SIN RESULTADOS");
                         horizontal-alignment: center;
                     }
                 }
@@ -288,15 +288,15 @@ export component LauncherWindow inherits Window {
                     spacing: 18px;
                     alignment: end;
                     Label {
-                        text: "↑↓ NAVEGAR";
+                        text: @tr("↑↓ NAVEGAR");
                         font-size: 9px;
                     }
                     Label {
-                        text: "↵ ABRIR";
+                        text: @tr("↵ ABRIR");
                         font-size: 9px;
                     }
                     Label {
-                        text: "ESC CERRAR";
+                        text: @tr("ESC CERRAR");
                         font-size: 9px;
                     }
                 }

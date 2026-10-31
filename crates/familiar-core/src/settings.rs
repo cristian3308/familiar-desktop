@@ -57,6 +57,20 @@ impl Settings {
                 }
             })
         });
+        ui.on_calm_next(|i| {
+            with_app(|a| {
+                let Some(scenario) = crate::config::CalmScenario::ALL.get(i.max(0) as usize).copied() else { return };
+                {
+                    let mut cfg = a.cfg.borrow_mut();
+                    let rule = cfg.calm.rule_mut(scenario);
+                    *rule = rule.next();
+                }
+                a.save_config();
+                a.settings.refresh_texts(a);
+                a.evaluate_calm();
+            })
+        });
+        ui.on_language_next(|| with_app(|a| a.set_language(crate::i18n::current().next())));
         ui.on_surprise_me(|| with_app(|a| a.settings.surprise_me(a)));
         ui.on_theme_from_wallpaper(|| with_app(|a| a.settings.theme_from_wallpaper(a)));
         ui.on_transition_next(|| {
@@ -183,6 +197,9 @@ impl Settings {
         self.ui.set_custom_icons(cfg.dock.custom_icons);
         self.ui.set_window_previews(cfg.dock.window_previews);
         self.ui.set_alt_w(cfg.wallpaper.alt_w);
+        drop(cfg);
+        self.refresh_texts(app);
+        let cfg = app.cfg.borrow();
         self.ui.set_transition(crate::wallfx::Transition::from_id(&cfg.wallpaper.transition).name().into());
         self.ui.set_files_style(crate::dock::FilesStyle::from_id(&cfg.dock.files_style).name().into());
         self.ui.set_show_running(cfg.dock.show_running);
@@ -294,6 +311,15 @@ impl Settings {
             }
             Err(e) => log::warn!("{}: {e}", path.display()),
         }
+    }
+
+    /// Labels Rust provides (Calm rules, language name), in the UI language.
+    pub fn refresh_texts(&self, app: &App) {
+        let cfg = app.cfg.borrow();
+        let labels: Vec<slint::SharedString> =
+            crate::config::CalmScenario::ALL.iter().map(|s| crate::i18n::t(cfg.calm.rule(*s).label()).into()).collect();
+        self.ui.set_calm_labels(Rc::new(VecModel::from(labels)).into());
+        self.ui.set_language_name(crate::i18n::current().name().into());
     }
 
     /// "Surprise me": a random harmonious theme, saved as `surprise.toml`.

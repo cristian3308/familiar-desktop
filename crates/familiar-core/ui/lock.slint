@@ -72,7 +72,7 @@ export component LockWindow inherits Window {
                     y: root.height / 2 + 60px;
                     width: root.width;
                     horizontal-alignment: center;
-                    text: "FAMILIAR";
+                    text: @tr("FAMILIAR");
                     font-size: 13px;
                     letter-spacing: 6px;
                     color: #ffffffb3;
@@ -179,7 +179,7 @@ export component LockWindow inherits Window {
                         horizontal-alignment: center;
                     }
                     Text {
-                        text: "Haz clic o pulsa una tecla para entrar";
+                        text: @tr("Haz clic o pulsa una tecla para entrar");
                         color: white;
                         font-size: 14px;
                         horizontal-alignment: center;
@@ -187,7 +187,7 @@ export component LockWindow inherits Window {
                     Label {
                         width: root.width;
                         horizontal-alignment: center;
-                        text: (root.battery >= 0 ? (root.charging ? "CARGANDO · " : "BATERÍA · ") + root.battery + "%   ·   " : "") + "WIN+L BLOQUEA CON CONTRASEÑA";
+                        text: (root.battery >= 0 ? (root.charging ? @tr("CARGANDO · ") : @tr("BATERÍA · ")) + root.battery + "%   ·   " : "") + @tr("WIN+L BLOQUEA CON CONTRASEÑA");
                         font-size: 10px;
                     }
                 }

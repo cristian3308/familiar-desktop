@@ -7,6 +7,7 @@
 
 mod calc;
 mod config;
+mod i18n;
 mod logger;
 
 #[cfg(windows)]

@@ -484,7 +484,7 @@ export component DockWindow inherits Window {
             x: 14px;
             y: 9px;
             height: 14px;
-            text: item.name.to-uppercase() + " · " + root.preview-titles.length + (root.preview-titles.length == 1 ? " VENTANA" : " VENTANAS");
+            text: item.name.to-uppercase() + " · " + root.preview-titles.length + (root.preview-titles.length == 1 ? @tr(" VENTANA") : @tr(" VENTANAS"));
             color: #ffffff99;
             font-size: 9px;
         }

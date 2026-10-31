@@ -1,0 +1,331 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: en-US\n"
+
+msgid "CONTROL CENTER"
+msgstr "CONTROL CENTER"
+
+msgid "Wi-Fi"
+msgstr "Wi-Fi"
+
+msgid "No disponible"
+msgstr "Unavailable"
+
+msgid "Activado"
+msgstr "On"
+
+msgid "Desactivado"
+msgstr "Off"
+
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
+msgid "Pantalla"
+msgstr "Display"
+
+msgid "Sonido"
+msgstr "Sound"
+
+msgid "Silencio"
+msgstr "Mute"
+
+msgid "Apariencia"
+msgstr "Appearance"
+
+msgid "Claro"
+msgstr "Light"
+
+msgid "Oscuro"
+msgstr "Dark"
+
+msgid "Bloquear"
+msgstr "Lock"
+
+msgid "Familiar"
+msgstr "Familiar"
+
+msgid "Configuración del sistema"
+msgstr "System Settings"
+
+msgid " VENTANA"
+msgstr " WINDOW"
+
+msgid " VENTANAS"
+msgstr " WINDOWS"
+
+msgid "REPRODUCIENDO"
+msgstr "PLAYING"
+
+msgid "EN PAUSA"
+msgstr "PAUSED"
+
+msgid "SIN MÚSICA"
+msgstr "NO MUSIC"
+
+msgid "FOCUS "
+msgstr "FOCUS "
+
+msgid "FOCUS"
+msgstr "FOCUS"
+
+msgid "Nada reproduciéndose"
+msgstr "Nothing playing"
+
+msgid "BUSCAR"
+msgstr "SEARCH"
+
+msgid "= 2+2 CALCULA"
+msgstr "= 2+2 CALCULATES"
+
+msgid "Buscar en recientes…"
+msgstr "Search recent…"
+
+msgid "Filtrar apps…"
+msgstr "Filter apps…"
+
+msgid "Abrir una app…"
+msgstr "Open an app…"
+
+msgid "APPS"
+msgstr "APPS"
+
+msgid "RECIENTES"
+msgstr "RECENT"
+
+msgid "TAB CAMBIA"
+msgstr "TAB SWITCHES"
+
+msgid "SIN ARCHIVOS RECIENTES"
+msgstr "NO RECENT FILES"
+
+msgid "SIN RESULTADOS"
+msgstr "NO RESULTS"
+
+msgid "↑↓ NAVEGAR"
+msgstr "↑↓ NAVIGATE"
+
+msgid "↵ ABRIR"
+msgstr "↵ OPEN"
+
+msgid "ESC CERRAR"
+msgstr "ESC CLOSE"
+
+msgid "FAMILIAR"
+msgstr "FAMILIAR"
+
+msgid "Haz clic o pulsa una tecla para entrar"
+msgstr "Click or press a key to enter"
+
+msgid "CARGANDO · "
+msgstr "CHARGING · "
+
+msgid "BATERÍA · "
+msgstr "BATTERY · "
+
+msgid "WIN+L BLOQUEA CON CONTRASEÑA"
+msgstr "WIN+L LOCKS WITH PASSWORD"
+
+msgid "Ajustes de Familiar"
+msgstr "Familiar Settings"
+
+msgid "Dock"
+msgstr "Dock"
+
+msgid "Widgets"
+msgstr "Widgets"
+
+msgid "General"
+msgstr "General"
+
+msgid "Calma e idioma"
+msgstr "Calm & language"
+
+msgid "TEMA"
+msgstr "THEME"
+
+msgid "Aa"
+msgstr "Aa"
+
+msgid "Surprise me"
+msgstr "Surprise me"
+
+msgid "Tema desde el fondo"
+msgstr "Theme from wallpaper"
+
+msgid "COLOR DE ACENTO"
+msgstr "ACCENT COLOUR"
+
+msgid "BARRA SUPERIOR"
+msgstr "TOP BAR"
+
+msgid "Opacidad"
+msgstr "Opacity"
+
+msgid "Tamaño de los iconos"
+msgstr "Icon size"
+
+msgid " px"
+msgstr " px"
+
+msgid "Ampliación"
+msgstr "Magnification"
+
+msgid "Iconos estilo macOS"
+msgstr "macOS-style icons"
+
+msgid "Explorador, Configuración y Terminal"
+msgstr "Explorer, Settings and Terminal"
+
+msgid "Icono de Archivos"
+msgstr "Files icon"
+
+msgid "Classic, Dot F, Mono, Theme o Glass"
+msgstr "Classic, Dot F, Mono, Theme or Glass"
+
+msgid "Ventanas al pasar el ratón"
+msgstr "Windows on hover"
+
+msgid "Lista las ventanas abiertas de la app"
+msgstr "Lists the app's open windows"
+
+msgid "Mostrar apps abiertas"
+msgstr "Show open apps"
+
+msgid "Calendario"
+msgstr "Calendar"
+
+msgid "Clima"
+msgstr "Weather"
+
+msgid "Usa internet (Open-Meteo)"
+msgstr "Uses the internet (Open-Meteo)"
+
+msgid "Sistema"
+msgstr "System"
+
+msgid "CPU, memoria y batería"
+msgstr "CPU, memory and battery"
+
+msgid "SIGNAL/01"
+msgstr "SIGNAL/01"
+
+msgid "Matriz de puntos: pulsa el modo para cambiarlo"
+msgstr "Dot matrix: press the mode to change it"
+
+msgid "Reloj de puntos"
+msgstr "Dot clock"
+
+msgid "Visualizador"
+msgstr "Visualizer"
+
+msgid "Seis escenas; toca el widget para cambiar"
+msgstr "Six scenes; tap the widget to switch"
+
+msgid "Reloj analógico"
+msgstr "Analog clock"
+
+msgid "Música"
+msgstr "Music"
+
+msgid "Carátula y controles"
+msgstr "Artwork and controls"
+
+msgid "CIUDAD DEL CLIMA"
+msgstr "WEATHER CITY"
+
+msgid "Pulsa Intro para guardar la ciudad."
+msgstr "Press Enter to save the city."
+
+msgid "CALM BY DESIGN"
+msgstr "CALM BY DESIGN"
+
+msgid "Ventana en primer plano"
+msgstr "Focused window"
+
+msgid "Ventana maximizada"
+msgstr "Maximised window"
+
+msgid "Pantalla completa o juego"
+msgstr "Full screen or game"
+
+msgid "Portátil con batería"
+msgstr "Laptop on battery"
+
+msgid "Se aplica la regla más estricta de las situaciones activas."
+msgstr "The strictest rule of the active situations applies."
+
+msgid "IDIOMA"
+msgstr "LANGUAGE"
+
+msgid "Idioma de la interfaz"
+msgstr "Interface language"
+
+msgid "También desde la barra superior"
+msgstr "Also from the top bar"
+
+msgid "Ocultar la barra de tareas de Windows"
+msgstr "Hide the Windows taskbar"
+
+msgid "Animación al abrir y minimizar"
+msgstr "Animate opening and minimising"
+
+msgid "Las ventanas salen del Dock y vuelven a él"
+msgstr "Windows grow from the Dock and return to it"
+
+msgid "Efecto genio al minimizar"
+msgstr "Genie effect when minimising"
+
+msgid "Apagado: la ventana se encoge suavemente"
+msgstr "Off: the window shrinks smoothly"
+
+msgid "Pantalla de bienvenida al iniciar"
+msgstr "Welcome screen at start-up"
+
+msgid "Splash y pantalla de bloqueo (solo visual)"
+msgstr "Splash and lock screen (visual only)"
+
+msgid "Alt + W cambia el fondo"
+msgstr "Alt + W changes the wallpaper"
+
+msgid "Recorre la carpeta del fondo actual (al reiniciar)"
+msgstr "Cycles the current wallpaper's folder (after restart)"
+
+msgid "Abrir al iniciar Windows"
+msgstr "Open at Windows start-up"
+
+msgid "Reiniciar Familiar"
+msgstr "Restart Familiar"
+
+msgid "Salir de Familiar"
+msgstr "Quit Familiar"
+
+msgid "Algunos cambios se aplican al reiniciar."
+msgstr "Some changes apply after a restart."
+
+msgid "Reiniciar ahora"
+msgstr "Restart now"
+
+msgid "Escritorio"
+msgstr "Desktop"
+
+msgid "Cargando…"
+msgstr "Loading…"
+
+msgid "CPU"
+msgstr "CPU"
+
+msgid "MEMORIA"
+msgstr "MEMORY"
+
+msgid "BATERÍA"
+msgstr "BATTERY"
+
+msgid "AC"
+msgstr "AC"
+
+msgid "cargando"
+msgstr "charging"
+
+msgid "MÚSICA"
+msgstr "MUSIC"

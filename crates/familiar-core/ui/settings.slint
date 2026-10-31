@@ -213,7 +213,7 @@ component SidebarItem inherits Rectangle {
 }
 
 export component SettingsWindow inherits Window {
-    title: "Ajustes de Familiar";
+    title: @tr("Ajustes de Familiar");
     no-frame: true;
     background: transparent;
     default-font-family: Theme.font;
@@ -255,6 +255,10 @@ export component SettingsWindow inherits Window {
     callback city-committed(string);
     callback signal-mode-next();
     callback files-style-next();
+    callback calm-next(int);
+    callback language-next();
+    in property <[string]> calm-labels: ["", "", "", ""];
+    in property <string> language-name;
     callback surprise-me();
     callback theme-from-wallpaper();
     callback transition-next();
@@ -308,7 +312,7 @@ export component SettingsWindow inherits Window {
                     }
                     SidebarItem {
                         glyph: "\u{E790}";
-                        label: "Apariencia";
+                        label: @tr("Apariencia");
                         tint: #0a84ff;
                         selected: root.section == 0;
                         clicked => {
@@ -317,7 +321,7 @@ export component SettingsWindow inherits Window {
                     }
                     SidebarItem {
                         glyph: "\u{E7F4}";
-                        label: "Dock";
+                        label: @tr("Dock");
                         tint: #8e8e93;
                         selected: root.section == 1;
                         clicked => {
@@ -326,7 +330,7 @@ export component SettingsWindow inherits Window {
                     }
                     SidebarItem {
                         glyph: "\u{E8FD}";
-                        label: "Widgets";
+                        label: @tr("Widgets");
                         tint: #bf5af2;
                         selected: root.section == 2;
                         clicked => {
@@ -335,11 +339,20 @@ export component SettingsWindow inherits Window {
                     }
                     SidebarItem {
                         glyph: "\u{E713}";
-                        label: "General";
+                        label: @tr("General");
                         tint: #636366;
                         selected: root.section == 3;
                         clicked => {
                             root.section = 3;
+                        }
+                    }
+                    SidebarItem {
+                        glyph: "\u{E708}";
+                        label: @tr("Calma e idioma");
+                        tint: #5e5ce6;
+                        selected: root.section == 4;
+                        clicked => {
+                            root.section = 4;
                         }
                     }
                 }
@@ -353,7 +366,7 @@ export component SettingsWindow inherits Window {
                 alignment: start;
 
                 Text {
-                    text: root.section == 0 ? "Apariencia" : root.section == 1 ? "Dock" : root.section == 2 ? "Widgets" : "General";
+                    text: root.section == 0 ? @tr("Apariencia") : root.section == 1 ? @tr("Dock") : root.section == 2 ? @tr("Widgets") : root.section == 3 ? @tr("General") : @tr("Calma e idioma");
                     color: white;
                     font-family: Theme.display;
                     font-size: 20px;
@@ -363,7 +376,7 @@ export component SettingsWindow inherits Window {
                 if root.section == 0: VerticalLayout {
                     spacing: 8px;
                     SectionTitle {
-                        text: "TEMA";
+                        text: @tr("TEMA");
                     }
                     // Paint-chip cards, six per row; scrolls past three rows.
                     grid := Flickable {
@@ -398,7 +411,7 @@ export component SettingsWindow inherits Window {
                                 Text {
                                     x: 8px;
                                     y: 20px;
-                                    text: "Aa";
+                                    text: @tr("Aa");
                                     color: t.ink;
                                     font-family: Theme.display;
                                     font-size: 16px;
@@ -437,21 +450,21 @@ export component SettingsWindow inherits Window {
                         spacing: 10px;
                         alignment: start;
                         Button {
-                            text: "Surprise me";
+                            text: @tr("Surprise me");
                             primary: true;
                             clicked => {
                                 root.surprise-me();
                             }
                         }
                         Button {
-                            text: "Tema desde el fondo";
+                            text: @tr("Tema desde el fondo");
                             clicked => {
                                 root.theme-from-wallpaper();
                             }
                         }
                     }
                     SectionTitle {
-                        text: "COLOR DE ACENTO";
+                        text: @tr("COLOR DE ACENTO");
                     }
                     Group {
                         Rectangle {
@@ -479,11 +492,11 @@ export component SettingsWindow inherits Window {
                         }
                     }
                     SectionTitle {
-                        text: "BARRA SUPERIOR";
+                        text: @tr("BARRA SUPERIOR");
                     }
                     Group {
                         Row {
-                            title: "Opacidad";
+                            title: @tr("Opacidad");
                             detail: round(root.bar-opacity * 100) + " %";
                             last: true;
                             Slider {
@@ -503,8 +516,8 @@ export component SettingsWindow inherits Window {
                     spacing: 8px;
                     Group {
                         Row {
-                            title: "Tamaño de los iconos";
-                            detail: round(root.icon-size) + " px";
+                            title: @tr("Tamaño de los iconos");
+                            detail: round(root.icon-size) + @tr(" px");
                             Slider {
                                 width: 220px;
                                 minimum: 32;
@@ -516,7 +529,7 @@ export component SettingsWindow inherits Window {
                             }
                         }
                         Row {
-                            title: "Ampliación";
+                            title: @tr("Ampliación");
                             detail: round(root.magnification * 100) / 100 + "×";
                             Slider {
                                 width: 220px;
@@ -529,8 +542,8 @@ export component SettingsWindow inherits Window {
                             }
                         }
                         Row {
-                            title: "Iconos estilo macOS";
-                            detail: "Explorador, Configuración y Terminal";
+                            title: @tr("Iconos estilo macOS");
+                            detail: @tr("Explorador, Configuración y Terminal");
                             Switch {
                                 y: 12px;
                                 on <=> root.custom-icons;
@@ -540,8 +553,8 @@ export component SettingsWindow inherits Window {
                             }
                         }
                         Row {
-                            title: "Icono de Archivos";
-                            detail: "Classic, Dot F, Mono, Theme o Glass";
+                            title: @tr("Icono de Archivos");
+                            detail: @tr("Classic, Dot F, Mono, Theme o Glass");
                             Button {
                                 y: 9px;
                                 text: root.files-style;
@@ -551,8 +564,8 @@ export component SettingsWindow inherits Window {
                             }
                         }
                         Row {
-                            title: "Ventanas al pasar el ratón";
-                            detail: "Lista las ventanas abiertas de la app";
+                            title: @tr("Ventanas al pasar el ratón");
+                            detail: @tr("Lista las ventanas abiertas de la app");
                             Switch {
                                 y: 12px;
                                 on <=> root.window-previews;
@@ -562,7 +575,7 @@ export component SettingsWindow inherits Window {
                             }
                         }
                         Row {
-                            title: "Mostrar apps abiertas";
+                            title: @tr("Mostrar apps abiertas");
                             last: true;
                             Switch {
                                 y: 12px;
@@ -579,7 +592,7 @@ export component SettingsWindow inherits Window {
                     spacing: 8px;
                     Group {
                         Row {
-                            title: "Calendario";
+                            title: @tr("Calendario");
                             Switch {
                                 y: 12px;
                                 on <=> root.w-calendar;
@@ -589,8 +602,8 @@ export component SettingsWindow inherits Window {
                             }
                         }
                         Row {
-                            title: "Clima";
-                            detail: "Usa internet (Open-Meteo)";
+                            title: @tr("Clima");
+                            detail: @tr("Usa internet (Open-Meteo)");
                             Switch {
                                 y: 12px;
                                 on <=> root.w-weather;
@@ -600,8 +613,8 @@ export component SettingsWindow inherits Window {
                             }
                         }
                         Row {
-                            title: "Sistema";
-                            detail: "CPU, memoria y batería";
+                            title: @tr("Sistema");
+                            detail: @tr("CPU, memoria y batería");
                             Switch {
                                 y: 12px;
                                 on <=> root.w-system;
@@ -611,8 +624,8 @@ export component SettingsWindow inherits Window {
                             }
                         }
                         Row {
-                            title: "SIGNAL/01";
-                            detail: "Matriz de puntos: pulsa el modo para cambiarlo";
+                            title: @tr("SIGNAL/01");
+                            detail: @tr("Matriz de puntos: pulsa el modo para cambiarlo");
                             Button {
                                 y: 9px;
                                 text: root.signal-mode;
@@ -629,7 +642,7 @@ export component SettingsWindow inherits Window {
                             }
                         }
                         Row {
-                            title: "Reloj de puntos";
+                            title: @tr("Reloj de puntos");
                             Switch {
                                 y: 12px;
                                 on <=> root.w-clock;
@@ -639,8 +652,8 @@ export component SettingsWindow inherits Window {
                             }
                         }
                         Row {
-                            title: "Visualizador";
-                            detail: "Seis escenas; toca el widget para cambiar";
+                            title: @tr("Visualizador");
+                            detail: @tr("Seis escenas; toca el widget para cambiar");
                             Switch {
                                 y: 12px;
                                 on <=> root.w-visualizer;
@@ -650,7 +663,7 @@ export component SettingsWindow inherits Window {
                             }
                         }
                         Row {
-                            title: "Reloj analógico";
+                            title: @tr("Reloj analógico");
                             Switch {
                                 y: 12px;
                                 on <=> root.w-analog;
@@ -660,8 +673,8 @@ export component SettingsWindow inherits Window {
                             }
                         }
                         Row {
-                            title: "Música";
-                            detail: "Carátula y controles";
+                            title: @tr("Música");
+                            detail: @tr("Carátula y controles");
                             last: true;
                             Switch {
                                 y: 12px;
@@ -673,7 +686,7 @@ export component SettingsWindow inherits Window {
                         }
                     }
                     SectionTitle {
-                        text: "CIUDAD DEL CLIMA";
+                        text: @tr("CIUDAD DEL CLIMA");
                     }
                     Rectangle {
                         height: 36px;
@@ -695,9 +708,56 @@ export component SettingsWindow inherits Window {
                         }
                     }
                     Text {
-                        text: "Pulsa Intro para guardar la ciudad.";
+                        text: @tr("Pulsa Intro para guardar la ciudad.");
                         color: #ffffff66;
                         font-size: 11px;
+                    }
+                }
+
+                if root.section == 4: VerticalLayout {
+                    spacing: 8px;
+                    SectionTitle {
+                        text: @tr("CALM BY DESIGN");
+                    }
+                    Group {
+                        for scenario[i] in [
+                            @tr("Ventana en primer plano"),
+                            @tr("Ventana maximizada"),
+                            @tr("Pantalla completa o juego"),
+                            @tr("Portátil con batería")]: Row {
+                            title: scenario;
+                            last: i == 3;
+                            Button {
+                                y: 9px;
+                                text: root.calm-labels[i];
+                                clicked => {
+                                    root.calm-next(i);
+                                }
+                            }
+                        }
+                    }
+                    Text {
+                        text: @tr("Se aplica la regla más estricta de las situaciones activas.");
+                        color: #ffffff66;
+                        font-size: 11px;
+                        wrap: word-wrap;
+                    }
+                    SectionTitle {
+                        text: @tr("IDIOMA");
+                    }
+                    Group {
+                        Row {
+                            title: @tr("Idioma de la interfaz");
+                            detail: @tr("También desde la barra superior");
+                            last: true;
+                            Button {
+                                y: 9px;
+                                text: root.language-name;
+                                clicked => {
+                                    root.language-next();
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -705,7 +765,7 @@ export component SettingsWindow inherits Window {
                     spacing: 8px;
                     Group {
                         Row {
-                            title: "Ocultar la barra de tareas de Windows";
+                            title: @tr("Ocultar la barra de tareas de Windows");
                             Switch {
                                 y: 12px;
                                 on <=> root.hide-taskbar;
@@ -715,8 +775,8 @@ export component SettingsWindow inherits Window {
                             }
                         }
                         Row {
-                            title: "Animación al abrir y minimizar";
-                            detail: "Las ventanas salen del Dock y vuelven a él";
+                            title: @tr("Animación al abrir y minimizar");
+                            detail: @tr("Las ventanas salen del Dock y vuelven a él");
                             Switch {
                                 y: 12px;
                                 on <=> root.window-animations;
@@ -726,8 +786,8 @@ export component SettingsWindow inherits Window {
                             }
                         }
                         Row {
-                            title: "Efecto genio al minimizar";
-                            detail: "Apagado: la ventana se encoge suavemente";
+                            title: @tr("Efecto genio al minimizar");
+                            detail: @tr("Apagado: la ventana se encoge suavemente");
                             Switch {
                                 y: 12px;
                                 on <=> root.genie-effect;
@@ -737,8 +797,8 @@ export component SettingsWindow inherits Window {
                             }
                         }
                         Row {
-                            title: "Pantalla de bienvenida al iniciar";
-                            detail: "Splash y pantalla de bloqueo (solo visual)";
+                            title: @tr("Pantalla de bienvenida al iniciar");
+                            detail: @tr("Splash y pantalla de bloqueo (solo visual)");
                             Switch {
                                 y: 12px;
                                 on <=> root.lock-on-start;
@@ -748,8 +808,8 @@ export component SettingsWindow inherits Window {
                             }
                         }
                         Row {
-                            title: "Alt + W cambia el fondo";
-                            detail: "Recorre la carpeta del fondo actual (al reiniciar)";
+                            title: @tr("Alt + W cambia el fondo");
+                            detail: @tr("Recorre la carpeta del fondo actual (al reiniciar)");
                             Button {
                                 y: 9px;
                                 text: root.transition;
@@ -766,7 +826,7 @@ export component SettingsWindow inherits Window {
                             }
                         }
                         Row {
-                            title: "Abrir al iniciar Windows";
+                            title: @tr("Abrir al iniciar Windows");
                             last: true;
                             Switch {
                                 y: 12px;
@@ -781,13 +841,13 @@ export component SettingsWindow inherits Window {
                         spacing: 10px;
                         alignment: start;
                         Button {
-                            text: "Reiniciar Familiar";
+                            text: @tr("Reiniciar Familiar");
                             clicked => {
                                 root.restart();
                             }
                         }
                         Button {
-                            text: "Salir de Familiar";
+                            text: @tr("Salir de Familiar");
                             danger: true;
                             clicked => {
                                 root.quit-familiar();
@@ -812,14 +872,14 @@ export component SettingsWindow inherits Window {
                 padding-right: 9px;
                 spacing: 10px;
                 Text {
-                    text: "Algunos cambios se aplican al reiniciar.";
+                    text: @tr("Algunos cambios se aplican al reiniciar.");
                     color: white;
                     font-size: 12px;
                     vertical-alignment: center;
                 }
                 Button {
                     y: 9px;
-                    text: "Reiniciar ahora";
+                    text: @tr("Reiniciar ahora");
                     primary: true;
                     clicked => {
                         root.restart();

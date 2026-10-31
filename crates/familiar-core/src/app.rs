@@ -24,7 +24,7 @@ use familiar_theme::{Theme as ThemeSpec, ThemeWatcher};
 use slint::{Timer, TimerMode};
 
 use crate::audio_pipe::AudioPipe;
-use crate::config::{AppConfig, Paths};
+use crate::config::{AppConfig, CalmInputs, CalmState, Paths};
 use crate::controlcenter::ControlCenter;
 use crate::dock::Dock;
 use crate::fx::{CursorFx, WindowFx};
@@ -106,6 +106,8 @@ pub struct App {
     privacy: RefCell<PrivacyState>,
     battery: Cell<Battery>,
     calm: Cell<bool>,
+    /// Calm rules currently in force (see `CalmConfig::evaluate`).
+    calm_state: Cell<CalmState>,
     custom_cursors: Cell<bool>,
     requested_icons: RefCell<std::collections::HashSet<String>>,
     windows_debounce: Timer,
@@ -151,6 +153,7 @@ impl App {
             privacy: RefCell::new(PrivacyState::default()),
             battery: Cell::new(Battery::default()),
             calm: Cell::new(false),
+            calm_state: Cell::new(CalmState::default()),
             custom_cursors: Cell::new(false),
             requested_icons: RefCell::new(Default::default()),
             windows_debounce: Timer::default(),
@@ -188,6 +191,11 @@ impl App {
         if let Some(t) = &self.topbar {
             t.set_battery(self.battery.get());
             t.set_layout_code(&power::keyboard_layout_code());
+        }
+        let lang = crate::i18n::Lang::from_code(&self.cfg.borrow().language);
+        crate::i18n::set(lang);
+        if let Some(t) = &self.topbar {
+            t.set_ui_lang(lang);
         }
         self.on_foreground(windows_list::foreground());
         self.schedule_minute_tick();
@@ -476,7 +484,7 @@ impl App {
                 if let Some(t) = &self.topbar {
                     t.set_battery(self.battery.get());
                 }
-                self.update_audio_state();
+                self.evaluate_calm();
             }
         }
     }
@@ -597,9 +605,38 @@ impl App {
         self.evaluate_calm();
     }
 
-    fn evaluate_calm(&self) {
-        let enabled = self.cfg.borrow().calm.pause_on_fullscreen;
-        let calm = enabled && windows_list::foreground_is_fullscreen();
+    /// Switches the UI language everywhere and remembers it.
+    pub fn set_language(&self, lang: crate::i18n::Lang) {
+        crate::i18n::set(lang);
+        self.cfg.borrow_mut().language = lang.code().into();
+        self.save_config();
+        if let Some(t) = &self.topbar {
+            t.set_ui_lang(lang);
+            t.set_app_name(&self.app_name_for(windows_list::foreground()));
+        }
+        self.settings.refresh_texts(self);
+    }
+
+    /// Re-reads the four Calm scenarios and applies the strictest rule.
+    pub fn evaluate_calm(&self) {
+        let (focused, maximized) = windows_list::foreground_app_state();
+        let battery = self.battery.get();
+        let inputs = CalmInputs {
+            focused,
+            maximized,
+            fullscreen: windows_list::foreground_is_fullscreen(),
+            on_battery: battery.saver || (battery.percent.is_some() && !battery.on_ac),
+        };
+        let state = self.cfg.borrow().calm.evaluate(inputs);
+        let before = self.calm_state.replace(state);
+        if before.pause_desktop != state.pause_desktop || before.pause_visualizer != state.pause_visualizer {
+            log::info!("calm rules: {state:?}");
+            if let Some(w) = &self.widgets {
+                w.set_visible(!state.pause_desktop && !state.hide_all);
+                w.set_animating(!state.pause_visualizer);
+            }
+        }
+        let calm = state.hide_all;
         if self.calm.replace(calm) != calm {
             log::info!("calm mode {}", if calm { "on (full-screen app)" } else { "off" });
             self.launcher.hide();
@@ -614,7 +651,7 @@ impl App {
                 i.set_visible(!calm);
             }
             if let Some(w) = &self.widgets {
-                w.set_visible(!calm);
+                w.set_visible(!calm && !state.pause_desktop);
             }
         }
         self.update_audio_state();
@@ -622,8 +659,8 @@ impl App {
 
     fn update_audio_state(&self) {
         let playing = self.media.borrow().as_ref().is_some_and(|m| m.playing);
-        let saver = self.cfg.borrow().calm.pause_on_battery_saver && self.battery.get().saver;
-        self.audio.set_active(playing && !self.calm.get() && !saver);
+        let paused = self.calm_state.get().pause_visualizer;
+        self.audio.set_active(playing && !self.calm.get() && !paused);
     }
 
     pub fn render_audio(&self, bands: &[f32]) {
@@ -739,7 +776,7 @@ impl App {
     fn app_name_for(&self, fg: Hwnd) -> String {
         let class = windows_list::class_name(fg.get());
         if fg.is_null() || matches!(class.as_str(), "Progman" | "WorkerW" | "Shell_TrayWnd") {
-            return "Escritorio".into();
+            return crate::i18n::t("Escritorio").into();
         }
         let pid = windows_list::process_id(fg.get());
         if pid == std::process::id() {
