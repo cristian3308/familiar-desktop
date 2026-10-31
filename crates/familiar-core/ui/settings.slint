@@ -102,7 +102,7 @@ component Button inherits Rectangle {
     animate background { duration: 100ms; }
     label := Text {
         text: root.text;
-        color: root.danger ? #ff453a : white;
+        color: root.danger ? #ff453a : (root.primary ? Theme.on-accent : white);
         font-size: 13px;
         font-weight: 600;
         horizontal-alignment: center;
@@ -198,7 +198,7 @@ component SidebarItem inherits Rectangle {
         }
         Text {
             text: root.label;
-            color: white;
+            color: root.selected ? Theme.on-accent : white;
             font-size: 13px;
             font-weight: root.selected ? 600 : 400;
             vertical-alignment: center;

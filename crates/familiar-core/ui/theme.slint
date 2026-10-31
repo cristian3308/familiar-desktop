@@ -14,6 +14,8 @@ export global Theme {
     // Nothing-style labels: small, uppercase, monospaced, letter-spaced.
     in-out property <string> mono: "Consolas";
     in-out property <string> icons: "Segoe Fluent Icons";
+    // Ink for text on an accent fill: black on light accents (white, yellow).
+    out property <color> on-accent: self.accent.red * 0.3 + self.accent.green * 0.59 + self.accent.blue * 0.11 > 170 ? #000000 : #ffffff;
 }
 
 // Small uppercase monospaced caption ("NOW PLAYING", "JUE 29 OCT").

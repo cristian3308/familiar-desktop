@@ -101,8 +101,11 @@ impl Settings {
         })
     }
 
+    /// Opens Settings, or brings it back to the front when it is open but
+    /// covered by another window; closes it only when it is already in front.
     pub fn toggle(&self, app: &App) {
-        if self.visible.get() { self.hide() } else { self.show(app) }
+        let in_front = self.hwnd.get().is_some_and(|h| windows_list::foreground() == h);
+        if self.visible.get() && in_front { self.hide() } else { self.show(app) }
     }
 
     pub fn show(&self, app: &App) {

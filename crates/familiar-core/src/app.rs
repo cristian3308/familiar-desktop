@@ -263,7 +263,9 @@ impl App {
     /// Starts a fresh copy (it waits for this one to exit) and quits.
     pub fn restart(&self) {
         let pid = std::process::id().to_string();
-        match std::env::current_exe().and_then(|exe| std::process::Command::new(exe).args(["--after", &pid]).spawn()) {
+        let exe = std::env::current_exe();
+        log::info!("restart requested ({exe:?})");
+        match exe.and_then(|exe| std::process::Command::new(exe).args(["--after", &pid]).spawn()) {
             Ok(_) => self.quit(),
             Err(e) => log::error!("restart: {e}"),
         }

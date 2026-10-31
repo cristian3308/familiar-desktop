@@ -258,7 +258,7 @@ export component IslandWindow inherits Window {
                         background: root.focus-active ? Theme.accent : (focus-touch.has-hover ? #ffffff26 : #ffffff14);
                         focus-label := Text {
                             text: root.focus-active ? @tr("FOCUS ") + root.focus-text : @tr("FOCUS");
-                            color: white;
+                            color: root.focus-active ? Theme.on-accent : white;
                             font-size: 9px;
                             font-weight: 700;
                             horizontal-alignment: center;
