@@ -2,8 +2,12 @@ import { Theme, Label, Dot } from "theme.slint";
 
 export struct LauncherItem {
     icon: image,
+    // Shown instead of the icon when there is none (calculator, folders).
+    glyph: string,
     name: string,
     detail: string,
+    // Action hint on the selected row ("ABRIR ↵", "COPIAR ↵").
+    hint: string,
 }
 
 export component LauncherWindow inherits Window {
@@ -16,6 +20,8 @@ export component LauncherWindow inherits Window {
     in property <[LauncherItem]> items;
     in-out property <int> selected;
     in-out property <string> query;
+    // 0 = apps, 1 = recent files, 2 = all apps A–Z.
+    in property <int> tab;
     // Set to false right before showing and to true on the next frame, so the
     // card fades and slides in.
     in property <bool> shown: true;
@@ -23,10 +29,26 @@ export component LauncherWindow inherits Window {
     callback query-changed(string);
     callback activate(int);
     callback dismiss();
+    callback tab-changed(int);
+
+    property <length> row-height: 50px;
 
     public function focus-search() {
         search.focus();
         search.select-all();
+    }
+
+    public function scroll-top() {
+        list.content-y = 0;
+    }
+
+    // Keeps the keyboard selection inside the scrolled list.
+    function reveal() {
+        if root.selected * root.row-height < -list.content-y {
+            list.content-y = -root.selected * root.row-height;
+        } else if (root.selected + 1) * root.row-height > -list.content-y + list.height {
+            list.content-y = -((root.selected + 1) * root.row-height - list.height);
+        }
     }
 
     keys := FocusScope {
@@ -37,10 +59,16 @@ export component LauncherWindow inherits Window {
             }
             if event.text == Key.DownArrow {
                 root.selected = min(root.items.length - 1, root.selected + 1);
+                root.reveal();
                 return accept;
             }
             if event.text == Key.UpArrow {
                 root.selected = max(0, root.selected - 1);
+                root.reveal();
+                return accept;
+            }
+            if event.text == Key.Tab {
+                root.tab-changed(mod(root.tab + (event.modifiers.shift ? 2 : 1), 3));
                 return accept;
             }
             if event.text == Key.Return {
@@ -77,6 +105,13 @@ export component LauncherWindow inherits Window {
                         text: "BUSCAR";
                         font-size: 10px;
                     }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
+                    Label {
+                        text: "= 2+2 CALCULA";
+                        font-size: 9px;
+                    }
                 }
 
                 HorizontalLayout {
@@ -95,13 +130,51 @@ export component LauncherWindow inherits Window {
                             }
                         }
                         if root.query == "": Text {
-                            text: "Abrir una app…";
+                            text: root.tab == 1 ? "Buscar en recientes…" : (root.tab == 2 ? "Filtrar apps…" : "Abrir una app…");
                             font-family: Theme.display;
                             font-size: 26px;
                             color: Theme.text-secondary.with-alpha(0.7);
                             vertical-alignment: center;
                             x: 0;
                         }
+                    }
+                }
+
+                // Tabs.
+                HorizontalLayout {
+                    height: 24px;
+                    spacing: 6px;
+                    alignment: start;
+                    for t[i] in ["APPS", "RECIENTES", "A–Z"]: Rectangle {
+                        width: tab-label.preferred-width + 22px;
+                        height: 24px;
+                        border-radius: 12px;
+                        background: i == root.tab ? Theme.text.with-alpha(0.12) : (tab-touch.has-hover ? Theme.text.with-alpha(0.06) : transparent);
+                        border-width: 1px;
+                        border-color: i == root.tab ? Theme.accent : Theme.glow;
+                        animate background, border-color { duration: 120ms; }
+                        tab-label := Text {
+                            text: t;
+                            color: i == root.tab ? Theme.accent : Theme.text-secondary;
+                            font-size: 10px;
+                            font-weight: 700;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                        tab-touch := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                root.tab-changed(i);
+                            }
+                        }
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
+                    Label {
+                        text: "TAB CAMBIA";
+                        font-size: 9px;
+                        y: 7px;
                     }
                 }
 
@@ -118,72 +191,94 @@ export component LauncherWindow inherits Window {
                     clip: true;
                 }
 
-                VerticalLayout {
-                    spacing: 2px;
+                Rectangle {
                     vertical-stretch: 1;
-                    alignment: start;
-                    for item[i] in root.items: Rectangle {
-                        height: 48px;
-                        border-radius: 12px;
-                        background: i == root.selected ? Theme.text.with-alpha(0.08) : transparent;
-                        animate background { duration: 100ms; }
-                        if i == root.selected: Rectangle {
+                    list := Flickable {
+                        content-height: root.items.length * root.row-height;
+                        for item[i] in root.items: Rectangle {
                             x: 0;
-                            y: 12px;
-                            width: 3px;
-                            height: parent.height - 24px;
-                            border-radius: 1.5px;
-                            background: Theme.accent;
-                        }
-                        HorizontalLayout {
-                            padding-left: 14px;
-                            padding-right: 14px;
-                            spacing: 12px;
-                            Image {
-                                width: 32px;
-                                height: 32px;
-                                y: 8px;
-                                source: item.icon;
-                                image-fit: contain;
+                            y: i * root.row-height;
+                            width: list.width;
+                            height: root.row-height - 2px;
+                            border-radius: 12px;
+                            background: i == root.selected ? Theme.text.with-alpha(0.08) : transparent;
+                            animate background { duration: 100ms; }
+                            if i == root.selected: Rectangle {
+                                x: 0;
+                                y: 12px;
+                                width: 3px;
+                                height: parent.height - 24px;
+                                border-radius: 1.5px;
+                                background: Theme.accent;
                             }
-                            VerticalLayout {
-                                alignment: center;
-                                Text {
-                                    text: item.name;
-                                    color: Theme.text;
-                                    font-size: 14px;
-                                    font-weight: i == root.selected ? 600 : 400;
-                                    overflow: elide;
+                            HorizontalLayout {
+                                padding-left: 14px;
+                                padding-right: 14px;
+                                spacing: 12px;
+                                Rectangle {
+                                    width: 32px;
+                                    height: 32px;
+                                    y: 8px;
+                                    Image {
+                                        width: parent.width;
+                                        height: parent.height;
+                                        source: item.icon;
+                                        image-fit: contain;
+                                    }
+                                    if item.glyph != "": Rectangle {
+                                        border-radius: 9px;
+                                        background: Theme.text.with-alpha(0.08);
+                                        Text {
+                                            text: item.glyph;
+                                            font-family: Theme.icons;
+                                            font-size: 16px;
+                                            color: Theme.accent;
+                                            horizontal-alignment: center;
+                                            vertical-alignment: center;
+                                        }
+                                    }
                                 }
-                                if item.detail != "": Label {
-                                    text: item.detail.to-uppercase();
-                                    font-size: 9px;
-                                    overflow: elide;
+                                VerticalLayout {
+                                    alignment: center;
+                                    Text {
+                                        text: item.name;
+                                        color: Theme.text;
+                                        font-size: 14px;
+                                        font-weight: i == root.selected ? 600 : 400;
+                                        overflow: elide;
+                                    }
+                                    if item.detail != "": Label {
+                                        text: item.detail.to-uppercase();
+                                        font-size: 9px;
+                                        overflow: elide;
+                                    }
+                                }
+                                if i == root.selected: Label {
+                                    text: item.hint;
+                                    font-size: 10px;
+                                    color: Theme.accent;
+                                    horizontal-stretch: 0;
                                 }
                             }
-                            if i == root.selected: Label {
-                                text: "ABRIR ↵";
-                                font-size: 10px;
-                                color: Theme.accent;
-                                horizontal-stretch: 0;
-                            }
-                        }
-                        TouchArea {
-                            mouse-cursor: pointer;
-                            changed has-hover => {
-                                if self.has-hover {
-                                    root.selected = i;
+                            TouchArea {
+                                mouse-cursor: pointer;
+                                changed has-hover => {
+                                    if self.has-hover {
+                                        root.selected = i;
+                                    }
                                 }
-                            }
-                            clicked => {
-                                root.activate(i);
+                                clicked => {
+                                    root.activate(i);
+                                }
                             }
                         }
                     }
 
-                    if root.items.length == 0 && root.query != "": Label {
-                        height: 60px;
-                        text: "SIN RESULTADOS";
+                    if root.items.length == 0 && (root.query != "" || root.tab == 1): Label {
+                        y: 20px;
+                        height: 40px;
+                        width: parent.width;
+                        text: root.tab == 1 && root.query == "" ? "SIN ARCHIVOS RECIENTES" : "SIN RESULTADOS";
                         horizontal-alignment: center;
                     }
                 }

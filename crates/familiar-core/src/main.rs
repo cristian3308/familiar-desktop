@@ -5,6 +5,7 @@
 // Off Windows only the portable modules (and their tests) are built.
 #![cfg_attr(not(windows), allow(dead_code))]
 
+mod calc;
 mod config;
 mod logger;
 

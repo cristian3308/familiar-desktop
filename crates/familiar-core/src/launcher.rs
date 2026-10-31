@@ -1,29 +1,78 @@
 //! W4: the on-demand launcher (Win tap or a hotkey), searching the in-memory
 //! app index on every keystroke.
+//!
+//! Three tabs: fuzzy app search, recent documents and every app A–Z. Any
+//! tab shows an inline calculator row first when the query is arithmetic
+//! (`= 2*(3+4)` or `12/5`); Enter copies the result.
 
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use familiar_store::{AppEntry, AppSearch};
+use familiar_sys::icons::{self, IconSource};
+use familiar_sys::recent::{self, RecentFile};
 use familiar_sys::window::{self, SurfaceOptions};
-use familiar_sys::{Hwnd, subclass};
+use familiar_sys::{Hwnd, clipboard, subclass};
 use slint::{ComponentHandle, VecModel};
 use windows::Win32::Foundation::{LPARAM, WPARAM};
 use windows::Win32::UI::WindowsAndMessaging::{WA_INACTIVE, WM_ACTIVATE};
 
 use crate::app::{App, with_app};
+use crate::calc;
 use crate::ui::{self, LauncherItem, LauncherWindow};
 
 const WIDTH: f32 = 680.0;
-const HEIGHT: f32 = 590.0;
+const HEIGHT: f32 = 640.0;
+const RECENT_LIMIT: usize = 40;
+
+const GLYPH_CALC: &str = "\u{E8EF}";
+const GLYPH_FOLDER: &str = "\u{E8B7}";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Tab {
+    Apps,
+    Recent,
+    AllApps,
+}
+
+impl Tab {
+    fn from_index(i: i32) -> Self {
+        match i.rem_euclid(3) {
+            1 => Tab::Recent,
+            2 => Tab::AllApps,
+            _ => Tab::Apps,
+        }
+    }
+
+    fn index(self) -> i32 {
+        match self {
+            Tab::Apps => 0,
+            Tab::Recent => 1,
+            Tab::AllApps => 2,
+        }
+    }
+}
+
+/// What a result row does when activated.
+enum Row {
+    App(usize),
+    File(PathBuf),
+    Calc(String),
+}
 
 pub struct Launcher {
     pub ui: LauncherWindow,
     search: RefCell<AppSearch>,
-    results: RefCell<Vec<usize>>,
+    results: RefCell<Vec<Row>>,
     model: Rc<VecModel<LauncherItem>>,
     hwnd: Cell<Option<Hwnd>>,
     visible: Cell<bool>,
+    tab: Cell<Tab>,
+    recent: RefCell<Vec<RecentFile>>,
+    /// Shell icons of recent files, extracted once per session.
+    file_icons: RefCell<HashMap<PathBuf, slint::Image>>,
 }
 
 fn now_unix() -> i64 {
@@ -38,6 +87,7 @@ impl Launcher {
         ui.on_query_changed(|q| with_app(|a| a.launcher.refresh(a, &q)));
         ui.on_activate(|i| with_app(|a| a.launcher.activate(a, i)));
         ui.on_dismiss(|| with_app(|a| a.launcher.hide()));
+        ui.on_tab_changed(|i| with_app(|a| a.launcher.set_tab(a, Tab::from_index(i))));
         Ok(Self {
             ui,
             search: RefCell::new(AppSearch::new(Vec::new())),
@@ -45,6 +95,9 @@ impl Launcher {
             model,
             hwnd: Cell::new(None),
             visible: Cell::new(false),
+            tab: Cell::new(Tab::Apps),
+            recent: RefCell::new(Vec::new()),
+            file_icons: RefCell::new(HashMap::new()),
         })
     }
 
@@ -104,6 +157,9 @@ impl Launcher {
         win.set_size(slint::PhysicalSize::new(w as u32, h as u32));
         self.ui.set_query("".into());
         self.ui.set_shown(false);
+        self.tab.set(Tab::Apps);
+        self.ui.set_tab(0);
+        *self.recent.borrow_mut() = recent::recent_files(RECENT_LIMIT);
         self.refresh(app, "");
         if let Err(e) = self.ui.show() {
             log::error!("launcher: {e}");
@@ -150,34 +206,142 @@ impl Launcher {
         }
     }
 
+    fn set_tab(&self, app: &App, tab: Tab) {
+        self.tab.set(tab);
+        self.ui.set_tab(tab.index());
+        let query = self.ui.get_query();
+        self.refresh(app, &query);
+        self.ui.invoke_focus_search();
+    }
+
     fn refresh(&self, app: &App, query: &str) {
-        let limit = app.cfg.borrow().launcher.max_results;
-        let search = self.search.borrow();
-        let hits = search.search(query, limit, now_unix());
-        let rows: Vec<LauncherItem> = hits
-            .iter()
-            .filter_map(|h| search.get(h.index))
-            .map(|a| LauncherItem {
-                icon: ui::load_icon(std::path::Path::new(&a.icon_cache_path)),
-                name: a.name.as_str().into(),
-                detail: a.category.clone().unwrap_or_default().into(),
-            })
-            .collect();
-        *self.results.borrow_mut() = hits.iter().map(|h| h.index).collect();
-        self.model.set_vec(rows);
+        let mut rows: Vec<Row> = Vec::new();
+        let mut items: Vec<LauncherItem> = Vec::new();
+        if let Some(v) = calc::evaluate(query) {
+            let text = calc::format(v);
+            items.push(LauncherItem {
+                icon: slint::Image::default(),
+                glyph: GLYPH_CALC.into(),
+                name: format!("= {text}").into(),
+                detail: "Calculadora".into(),
+                hint: "COPIAR ↵".into(),
+            });
+            rows.push(Row::Calc(text));
+        }
+        match self.tab.get() {
+            Tab::Apps => {
+                let limit = app.cfg.borrow().launcher.max_results;
+                let search = self.search.borrow();
+                for h in search.search(query, limit, now_unix()) {
+                    if let Some(a) = search.get(h.index) {
+                        items.push(app_item(a, a.category.clone().unwrap_or_default()));
+                        rows.push(Row::App(h.index));
+                    }
+                }
+            }
+            Tab::AllApps => {
+                let search = self.search.borrow();
+                for i in alphabetical(search.apps(), query) {
+                    let a = &search.apps()[i];
+                    items.push(app_item(a, initial(&a.name)));
+                    rows.push(Row::App(i));
+                }
+            }
+            Tab::Recent => {
+                let needle = query.trim().to_lowercase();
+                let recent = self.recent.borrow();
+                for f in recent.iter().filter(|f| needle.is_empty() || f.name.to_lowercase().contains(&needle)) {
+                    items.push(self.file_item(f));
+                    rows.push(Row::File(f.link.clone()));
+                }
+            }
+        }
+        *self.results.borrow_mut() = rows;
+        self.model.set_vec(items);
         self.ui.set_selected(0);
+        self.ui.invoke_scroll_top();
+    }
+
+    fn file_item(&self, f: &RecentFile) -> LauncherItem {
+        let icon = if f.is_folder {
+            slint::Image::default()
+        } else {
+            self.file_icons
+                .borrow_mut()
+                .entry(f.link.clone())
+                .or_insert_with(|| {
+                    icons::extract(IconSource::Path(&f.link.to_string_lossy()), 32)
+                        .map(|i| ui::image_from_rgba(i.width, i.height, &i.rgba))
+                        .unwrap_or_default()
+                })
+                .clone()
+        };
+        LauncherItem {
+            icon,
+            glyph: if f.is_folder { GLYPH_FOLDER.into() } else { "".into() },
+            name: f.name.as_str().into(),
+            detail: (if f.is_folder { "Carpeta reciente" } else { "Archivo reciente" }).into(),
+            hint: "ABRIR ↵".into(),
+        }
     }
 
     fn activate(&self, app: &App, row: i32) {
-        let target = {
+        enum Action {
+            Launch(String),
+            Open(PathBuf),
+            Copy(String),
+        }
+        let action = {
             let results = self.results.borrow();
             let search = self.search.borrow();
-            results.get(row.max(0) as usize).and_then(|i| search.get(*i)).map(|a| a.launch_target.clone())
+            match results.get(row.max(0) as usize) {
+                Some(Row::App(i)) => search.get(*i).map(|a| Action::Launch(a.launch_target.clone())),
+                Some(Row::File(p)) => Some(Action::Open(p.clone())),
+                Some(Row::Calc(v)) => Some(Action::Copy(v.clone())),
+                None => None,
+            }
         };
-        let Some(target) = target else { return };
+        let Some(action) = action else { return };
         self.hide();
-        app.launch(&target);
-        self.search.borrow_mut().note_launch(&target, now_unix());
+        match action {
+            Action::Launch(target) => {
+                app.launch(&target);
+                self.search.borrow_mut().note_launch(&target, now_unix());
+            }
+            Action::Open(path) => app.launch(&path.to_string_lossy()),
+            Action::Copy(value) => {
+                if let Err(e) = clipboard::set_text(&value) {
+                    log::warn!("copying {value}: {e}");
+                }
+            }
+        }
+    }
+}
+
+fn app_item(a: &AppEntry, detail: String) -> LauncherItem {
+    LauncherItem {
+        icon: ui::load_icon(std::path::Path::new(&a.icon_cache_path)),
+        glyph: "".into(),
+        name: a.name.as_str().into(),
+        detail: detail.into(),
+        hint: "ABRIR ↵".into(),
+    }
+}
+
+/// Indices of `apps` whose name contains `query`, sorted by name.
+fn alphabetical(apps: &[AppEntry], query: &str) -> Vec<usize> {
+    let needle = query.trim().to_lowercase();
+    let mut idx: Vec<usize> =
+        (0..apps.len()).filter(|i| needle.is_empty() || apps[*i].name.to_lowercase().contains(&needle)).collect();
+    idx.sort_by_cached_key(|i| apps[*i].name.to_lowercase());
+    idx
+}
+
+/// Group letter for the A–Z list ("#" for digits and symbols).
+fn initial(name: &str) -> String {
+    match name.chars().next() {
+        Some(c) if c.is_alphabetic() => c.to_uppercase().collect(),
+        _ => "#".into(),
     }
 }
 
@@ -196,4 +360,29 @@ pub fn is_generic_host(exe: &str) -> bool {
             | "dllhost.exe"
             | "applicationframehost.exe"
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{alphabetical, initial};
+    use familiar_store::AppEntry;
+
+    fn app(name: &str) -> AppEntry {
+        AppEntry { name: name.into(), ..Default::default() }
+    }
+
+    #[test]
+    fn a_to_z_sorts_and_filters() {
+        let apps = vec![app("zoom"), app("Brave"), app("Calculadora"), app("audacity")];
+        let names = |v: Vec<usize>| v.into_iter().map(|i| apps[i].name.clone()).collect::<Vec<_>>();
+        assert_eq!(names(alphabetical(&apps, "")), ["audacity", "Brave", "Calculadora", "zoom"]);
+        assert_eq!(names(alphabetical(&apps, "a")), ["audacity", "Brave", "Calculadora"]);
+    }
+
+    #[test]
+    fn group_letters() {
+        assert_eq!(initial("brave"), "B");
+        assert_eq!(initial("7-Zip"), "#");
+        assert_eq!(initial("Ñandú"), "Ñ");
+    }
 }
