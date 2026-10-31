@@ -14,6 +14,7 @@ pub mod appbar;
 pub mod apps;
 pub mod audio;
 pub mod autostart;
+pub mod canvas;
 pub mod clipboard;
 pub mod clock;
 pub mod com;

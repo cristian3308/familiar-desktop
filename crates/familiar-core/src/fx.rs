@@ -2,15 +2,18 @@
 //! small click-through window that follows the event position.
 
 use std::cell::{Cell, RefCell};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use familiar_sys::ghost::Ghost;
+use familiar_sys::canvas::{self, Canvas};
+use familiar_sys::ghost::{Frames, Ghost};
 use familiar_sys::mouse::MouseFx;
 use familiar_sys::window::{self, Rect, SurfaceOptions};
 use familiar_sys::{Hwnd, windows_list};
 use slint::{ComponentHandle, Timer, TimerMode};
 
-use crate::app::{App, with_app};
+use crate::app::{App, post, with_app};
 use crate::ui::{self, FxWindow};
 
 pub struct CursorFx {
@@ -122,15 +125,6 @@ impl Flight {
     }
 }
 
-/// Thumbnails used for the genie effect: thin strips keep the curved
-/// sides smooth (240 measured fine on a 1080p screen; 64 looked stepped).
-const GENIE_STRIPS: usize = 240;
-
-/// Strip count, overridable with FAMILIAR_GENIE_STRIPS for tuning.
-fn genie_strips() -> usize {
-    std::env::var("FAMILIAR_GENIE_STRIPS").ok().and_then(|v| v.parse().ok()).unwrap_or(GENIE_STRIPS).clamp(8, 400)
-}
-
 fn smooth(x: f32) -> f32 {
     let x = x.clamp(0.0, 1.0);
     x * x * (3.0 - 2.0 * x)
@@ -167,42 +161,130 @@ fn fit(icon: Rect, window: Rect) -> Rect {
     }
 }
 
-/// Strip `i` of `n` at genie progress `t` (0 = window, 1 = inside the icon).
+/// Genie geometry at progress `t` (0 = window, 1 = inside the icon).
 ///
 /// Like macOS: first the window's bottom edge stretches down into the icon
 /// while its sides curve towards it (an S-curve that is untouched at the
 /// top and icon-wide at the bottom); then the whole body pours down through
-/// that funnel. The squeeze depends on the strip's position on screen, so
+/// that funnel. The squeeze depends on a row's position on screen, so
 /// content narrows as it slides down.
+#[derive(Clone, Copy, Debug)]
+struct Genie {
+    win: Rect,
+    icon: Rect,
+    /// Screen rows the window currently spans.
+    top: f32,
+    bottom: f32,
+    bend: f32,
+    slide: f32,
+}
+
+impl Genie {
+    fn at(win: Rect, icon: Rect, t: f32) -> Self {
+        // Phase 1 (0..0.55): stretch and bend, easing out so it starts at
+        // once. Phase 2 (0.2..1): slide in, easing in and out. They overlap,
+        // so the motion never stops between phases.
+        let bend = {
+            let v = (t / 0.55).clamp(0.0, 1.0);
+            1.0 - (1.0 - v) * (1.0 - v)
+        };
+        let slide = smooth((t - 0.2) / 0.8);
+        let lerp = |a: f32, b: f32, k: f32| a + (b - a) * k;
+        Self {
+            win,
+            icon,
+            top: lerp(win.y as f32, icon.y as f32, slide),
+            bottom: lerp((win.y + win.h) as f32, (icon.y + icon.h) as f32, bend),
+            bend,
+            slide,
+        }
+    }
+
+    /// Left and right edge (screen x) of the row at screen `y`.
+    fn edges(&self, y: f32) -> (f32, f32) {
+        let span = ((self.icon.y + self.icon.h) - self.win.y).max(1) as f32;
+        let f = ((y - self.win.y as f32) / span).clamp(0.0, 1.0);
+        let k = (self.bend * smooth(f)).max(self.slide * self.slide);
+        let lerp = |a: f32, b: f32| a + (b - a) * k;
+        (
+            lerp(self.win.x as f32, self.icon.x as f32),
+            lerp((self.win.x + self.win.w) as f32, (self.icon.x + self.icon.w) as f32),
+        )
+    }
+
+    /// Source row fraction (0..1) shown at screen `y`, if any.
+    fn source_row(&self, y: f32) -> Option<f32> {
+        let s = (y - self.top) / (self.bottom - self.top).max(0.001);
+        (0.0..1.0).contains(&s).then_some(s)
+    }
+}
+
+/// Strip `i` of `n` at genie progress `t`, as a rectangle.
+#[cfg(test)]
 fn genie_strip(w: Rect, icon: Rect, i: usize, n: usize, t: f32) -> Rect {
-    let s0 = i as f32 / n as f32;
-    let s1 = (i + 1) as f32 / n as f32;
-    let lerp = |a: f32, b: f32, k: f32| a + (b - a) * k;
-    // Phase 1 (0..0.55): stretch and bend, easing out so it starts at
-    // once. Phase 2 (0.2..1): slide in, easing in and out. They overlap,
-    // so the motion never stops between phases.
-    let bend = {
-        let v = (t / 0.55).clamp(0.0, 1.0);
-        1.0 - (1.0 - v) * (1.0 - v)
-    };
-    let slide = smooth((t - 0.2) / 0.8);
-    let top = lerp(w.y as f32, icon.y as f32, slide);
-    let bottom = lerp((w.y + w.h) as f32, (icon.y + icon.h) as f32, bend);
-    let y = |s: f32| lerp(top, bottom, s);
-    let (y0, y1) = (y(s0), y(s1));
-    // Where this strip is between the window's top and the icon's bottom.
-    let span = ((icon.y + icon.h) - w.y).max(1) as f32;
-    let f = (((y0 + y1) / 2.0 - w.y as f32) / span).clamp(0.0, 1.0);
-    let k = (bend * smooth(f)).max(slide * slide);
-    let left = lerp(w.x as f32, icon.x as f32, k);
-    let right = lerp((w.x + w.w) as f32, (icon.x + icon.w) as f32, k);
+    let g = Genie::at(w, icon, t);
+    let y = |s: f32| g.top + (g.bottom - g.top) * s;
+    let (y0, y1) = (y(i as f32 / n as f32), y((i + 1) as f32 / n as f32));
+    let (left, right) = g.edges((y0 + y1) / 2.0);
     Rect {
         x: left.round() as i32,
         y: y0.floor() as i32,
         w: (right.round() - left.round()).max(1.0) as i32,
-        // Overlap by a pixel so neighbouring strips never leave a seam.
         h: (y1.ceil() - y0.floor()).max(1.0) as i32 + 1,
     }
+}
+
+/// Renders the genie frame into `out` (BGRA premultiplied, `bbox` sized):
+/// every screen row samples its source row and stretches it between the
+/// curved edges, with anti-aliased sides.
+fn render_genie(src: &[u8], sw: usize, sh: usize, g: &Genie, bbox: Rect, opacity: f32, out: &mut [u8]) {
+    out.fill(0);
+    let (bw, bh) = (bbox.w.max(0) as usize, bbox.h.max(0) as usize);
+    if sw == 0 || sh == 0 || out.len() < bw * bh * 4 {
+        return;
+    }
+    let y_from = (g.top.floor() as i32 - bbox.y).max(0) as usize;
+    let y_to = ((g.bottom.ceil() as i32 - bbox.y).max(0) as usize).min(bh);
+    for oy in y_from..y_to {
+        let y = (oy as i32 + bbox.y) as f32 + 0.5;
+        let Some(s) = g.source_row(y) else { continue };
+        let sy = ((s * sh as f32) as usize).min(sh - 1);
+        let row = &src[sy * sw * 4..(sy + 1) * sw * 4];
+        let (left, right) = g.edges(y);
+        let width = (right - left).max(0.001);
+        let x_from = (left.floor() as i32 - bbox.x).max(0) as usize;
+        let x_to = ((right.ceil() as i32 - bbox.x).max(0) as usize).min(bw);
+        let line = &mut out[oy * bw * 4..(oy + 1) * bw * 4];
+        for ox in x_from..x_to {
+            let x = (ox as i32 + bbox.x) as f32;
+            // Coverage of this pixel by [left, right): soft edges.
+            let cover = ((x + 1.0).min(right) - x.max(left)).clamp(0.0, 1.0) * opacity;
+            if cover <= 0.0 {
+                continue;
+            }
+            let u = ((x + 0.5 - left) / width).clamp(0.0, 0.9999);
+            let sx = (u * sw as f32) as usize;
+            let p = &row[sx * 4..sx * 4 + 4];
+            let d = &mut line[ox * 4..ox * 4 + 4];
+            let a = cover * f32::from(p[3]) / 255.0;
+            d[0] = (f32::from(p[0]) * a) as u8;
+            d[1] = (f32::from(p[1]) * a) as u8;
+            d[2] = (f32::from(p[2]) * a) as u8;
+            d[3] = (255.0 * a) as u8;
+        }
+    }
+}
+
+fn union(a: Rect, b: Rect) -> Rect {
+    let (x0, y0) = (a.x.min(b.x), a.y.min(b.y));
+    let (x1, y1) = ((a.x + a.w).max(b.x + b.w), (a.y + a.h).max(b.y + b.h));
+    Rect { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }
+}
+
+fn clip(r: Rect, to: Rect) -> Rect {
+    let (x0, y0) = (r.x.max(to.x), r.y.max(to.y));
+    let (x1, y1) = ((r.x + r.w).min(to.x + to.w), (r.y + r.h).min(to.y + to.h));
+    Rect { x: x0, y: y0, w: (x1 - x0).max(0), h: (y1 - y0).max(0) }
 }
 
 /// macOS-style window animations: a live thumbnail of the window zooms out
@@ -214,13 +296,21 @@ pub struct WindowFx {
     /// Last animated window: Windows often reports a new window as shown
     /// twice (show + uncloak), which would restart the flight mid-way.
     last: Cell<Option<(Hwnd, Instant)>>,
-    flight: Cell<Option<Flight>>,
-    timer: Timer,
+    /// Bumped for every flight; an animation thread stops as soon as it
+    /// no longer matches (a newer flight took over the ghost).
+    generation: Arc<AtomicU64>,
+    /// Layered window the genie is drawn into, created on first use.
+    canvas: RefCell<Option<Arc<Mutex<Canvas>>>>,
 }
 
 impl WindowFx {
     pub fn new() -> Self {
-        Self { ghost: RefCell::new(None), last: Cell::new(None), flight: Cell::new(None), timer: Timer::default() }
+        Self {
+            ghost: RefCell::new(None),
+            last: Cell::new(None),
+            generation: Arc::new(AtomicU64::new(0)),
+            canvas: RefCell::new(None),
+        }
     }
 
     /// The window just opened.
@@ -325,64 +415,160 @@ impl WindowFx {
             *self.ghost.borrow_mut() = Ghost::new();
         }
         let area = app.monitor.get().bounds;
-        let strips = if f.genie.is_some() { genie_strips() } else { 1 };
-        let started = self.ghost.borrow_mut().as_mut().is_some_and(|g| g.begin(hwnd, area, f.hide, strips));
+        if f.genie.is_some() {
+            return self.fly_genie(hwnd, area, f);
+        }
+        let strips = 1;
+        // The real window's on-screen size, to crop DWM's invisible borders.
+        let window = if f.genie.is_some() || !f.hide { f.from } else { f.to };
+        let started =
+            self.ghost.borrow_mut().as_mut().is_some_and(|g| g.begin(hwnd, area, (window.w, window.h), f.hide, strips));
         if !started {
             log::debug!("window fx: no thumbnail for {hwnd:?}");
             return;
         }
-        let thumbs = self.ghost.borrow().as_ref().map_or(0, |g| g.strips());
-        log::debug!("window fx: {:?} -> {:?} genie={:?} thumbs={thumbs}", f.from, f.to, f.genie);
-        // Clock starts once the ghost exists, so setup time never eats
-        // into the first frames.
-        self.flight.set(Some(Flight { start: Instant::now(), ..f }));
-        self.step();
-        self.timer.start(TimerMode::Repeated, Duration::from_millis(1), || {
-            with_app(|a| a.window_fx.step());
+        let Some(frames) = self.ghost.borrow().as_ref().map(Ghost::frames) else { return };
+        log::debug!("window fx: {:?} -> {:?} genie={:?} thumbs={}", f.from, f.to, f.genie, frames.strips());
+        let generation = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
+        // First frame right away: the real window is already transparent.
+        draw(&f, &frames, 0.0);
+        let current = self.generation.clone();
+        // Frames come from their own thread, paced by DWM, so the dock,
+        // island and widgets repainting on the UI thread never make the
+        // animation skip a beat.
+        let flight = Flight { start: Instant::now(), ..f };
+        let spawned = std::thread::Builder::new().name("window-fx".into()).spawn(move || {
+            let mut count = 0u32;
+            loop {
+                if current.load(Ordering::SeqCst) != generation {
+                    return;
+                }
+                let t = (flight.start.elapsed().as_secs_f32() * 1000.0 / flight.ms).min(1.0);
+                draw(&flight, &frames, t);
+                count += 1;
+                if t >= 1.0 {
+                    let fps = count as f32 / flight.start.elapsed().as_secs_f32();
+                    log::debug!("window fx: {count} frames, {fps:.0} fps");
+                    post(move |a| a.window_fx.finish(generation));
+                    return;
+                }
+                Ghost::vsync();
+            }
         });
+        if spawned.is_err() {
+            self.finish(generation);
+        }
     }
 
-    fn step(&self) {
-        let Some(f) = self.flight.get() else { return };
-        let t = (f.start.elapsed().as_secs_f32() * 1000.0 / f.ms).min(1.0);
-        if t >= 1.0 {
-            self.flight.set(None);
-            self.timer.stop();
+    /// Genie: one snapshot of the window, bent on the CPU into a layered
+    /// window with one `UpdateLayeredWindow` per frame. (Hundreds of DWM
+    /// thumbnail strips managed only 12-30 fps.)
+    fn fly_genie(&self, hwnd: Hwnd, area: Rect, f: Flight) {
+        let reverse = f.genie == Some(true);
+        let win = f.from;
+        // Snapshot through a DWM thumbnail placed where the window is: it
+        // works for minimised windows too, and while the real one is hidden.
+        let started = self.ghost.borrow_mut().as_mut().is_some_and(|g| g.begin(hwnd, area, (win.w, win.h), f.hide, 1));
+        if !started {
+            log::debug!("window fx: no thumbnail for {hwnd:?}");
+            return;
+        }
+        let shot = clip(win, area);
+        if let Some(frames) = self.ghost.borrow().as_ref().map(Ghost::frames) {
+            frames.frame(win, 255);
+        }
+        Ghost::vsync();
+        Ghost::vsync();
+        let pixels = canvas::capture_screen(shot);
+        let Some(pixels) = pixels else {
             if let Some(g) = self.ghost.borrow_mut().as_mut() {
                 g.end();
             }
             return;
+        };
+        if self.canvas.borrow().is_none() {
+            *self.canvas.borrow_mut() = Canvas::new().map(|c| Arc::new(Mutex::new(c)));
         }
-        let opacity = f.opacity(t);
-        if let Some(g) = self.ghost.borrow().as_ref() {
-            if let Some(reverse) = f.genie {
-                let p = ease(f.ease, if reverse { 1.0 - t } else { t });
-                let n = g.strips();
-                for i in 0..n {
-                    g.frame_strip(i, genie_strip(f.from, f.to, i, n, p), opacity);
-                }
-            } else {
-                let e = ease(f.ease, t);
-                let lerp = |a: i32, b: i32| a as f32 + (b - a) as f32 * e;
-                let (x, y) = (lerp(f.from.x, f.to.x), lerp(f.from.y, f.to.y));
-                let (r, b) = (lerp(f.from.x + f.from.w, f.to.x + f.to.w), lerp(f.from.y + f.from.h, f.to.y + f.to.h));
-                let rect = Rect {
-                    x: x.round() as i32,
-                    y: y.round() as i32,
-                    w: (r - x).round() as i32,
-                    h: (b - y).round() as i32,
-                };
-                g.frame(rect, opacity);
+        let Some(canvas) = self.canvas.borrow().clone() else { return };
+        let bbox = clip(union(shot, f.to), area);
+        let (sw, sh) = (shot.w.max(1) as usize, shot.h.max(1) as usize);
+        let genie_at = move |t: f32| {
+            let p = ease(f.ease, if reverse { 1.0 - t } else { t });
+            Genie::at(shot, f.to, p)
+        };
+        {
+            let mut c = canvas.lock().unwrap_or_else(|e| e.into_inner());
+            if !c.begin(bbox) {
+                return;
             }
+            c.present(|out| render_genie(&pixels, sw, sh, &genie_at(0.0), bbox, f.opacity(0.0) as f32 / 255.0, out));
+            c.show();
         }
-        // Pace on the compositor: one update per displayed frame.
-        Ghost::vsync();
+        // The canvas now shows the window: the thumbnail can go.
+        if let Some(g) = self.ghost.borrow_mut().as_mut() {
+            g.drop_thumbnails();
+        }
+        log::debug!("window fx: genie {:?} -> {:?} reverse={reverse}", shot, f.to);
+        let generation = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
+        let current = self.generation.clone();
+        let flight = Flight { start: Instant::now(), ..f };
+        let spawned = std::thread::Builder::new().name("genie".into()).spawn(move || {
+            let mut count = 0u32;
+            loop {
+                if current.load(Ordering::SeqCst) != generation {
+                    return;
+                }
+                let t = (flight.start.elapsed().as_secs_f32() * 1000.0 / flight.ms).min(1.0);
+                let g = genie_at(t);
+                let opacity = flight.opacity(t) as f32 / 255.0;
+                canvas
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .present(|out| render_genie(&pixels, sw, sh, &g, bbox, opacity, out));
+                count += 1;
+                if t >= 1.0 {
+                    let fps = count as f32 / flight.start.elapsed().as_secs_f32();
+                    log::debug!("window fx: genie {count} frames, {fps:.0} fps");
+                    post(move |a| a.window_fx.finish(generation));
+                    return;
+                }
+                Ghost::vsync();
+            }
+        });
+        if spawned.is_err() {
+            self.finish(generation);
+        }
     }
+
+    /// The flight's thread drew its last frame: hand back the real window.
+    fn finish(&self, generation: u64) {
+        if self.generation.load(Ordering::SeqCst) != generation {
+            return;
+        }
+        if let Some(c) = self.canvas.borrow().as_ref() {
+            c.lock().unwrap_or_else(|e| e.into_inner()).hide();
+        }
+        if let Some(g) = self.ghost.borrow_mut().as_mut() {
+            g.end();
+        }
+    }
+}
+
+/// Places the ghost (a plain zoom) for progress `t` (0..=1) of `f`.
+fn draw(f: &Flight, frames: &Frames, t: f32) {
+    let opacity = f.opacity(t);
+    let e = ease(f.ease, t);
+    let lerp = |a: i32, b: i32| a as f32 + (b - a) as f32 * e;
+    let (x, y) = (lerp(f.from.x, f.to.x), lerp(f.from.y, f.to.y));
+    let (r, b) = (lerp(f.from.x + f.from.w, f.to.x + f.to.w), lerp(f.from.y + f.from.h, f.to.y + f.to.h));
+    let rect = Rect { x: x.round() as i32, y: y.round() as i32, w: (r - x).round() as i32, h: (b - y).round() as i32 };
+    frames.frame(rect, opacity);
 }
 
 impl Drop for WindowFx {
     fn drop(&mut self) {
-        // Never leave a window transparent.
+        // Stop any animation thread, and never leave a window transparent.
+        self.generation.fetch_add(1, Ordering::SeqCst);
         if let Some(g) = self.ghost.borrow_mut().as_mut() {
             g.end();
         }
@@ -424,6 +610,27 @@ mod tests {
         for pair in rows.windows(2) {
             assert!((pair[0].w - pair[1].w).abs() <= 24, "{:?} -> {:?}", pair[0], pair[1]);
             assert!(pair[1].w <= pair[0].w + 1, "widens downwards: {:?} -> {:?}", pair[0], pair[1]);
+        }
+    }
+
+    #[test]
+    fn genie_frame_starts_as_the_window_and_ends_in_the_icon() {
+        use super::{Genie, render_genie};
+        let (sw, sh) = (40usize, 30usize);
+        let src = vec![200u8; sw * sh * 4];
+        let win = Rect { x: 0, y: 0, w: 40, h: 30 };
+        let icon = Rect { x: 30, y: 60, w: 6, h: 6 };
+        let bbox = Rect { x: 0, y: 0, w: 40, h: 66 };
+        let mut out = vec![0u8; 40 * 66 * 4];
+        render_genie(&src, sw, sh, &Genie::at(win, icon, 0.0), bbox, 1.0, &mut out);
+        let lit = |out: &[u8]| out.chunks(4).filter(|p| p[3] > 0).count();
+        assert_eq!(lit(&out), 40 * 30, "t=0 covers exactly the window");
+        render_genie(&src, sw, sh, &Genie::at(win, icon, 1.0), bbox, 1.0, &mut out);
+        for (i, p) in out.chunks(4).enumerate() {
+            if p[3] > 0 {
+                let (x, y) = ((i % 40) as i32, (i / 40) as i32);
+                assert!((29..=36).contains(&x) && (59..=66).contains(&y), "pixel {x},{y} outside the icon");
+            }
         }
     }
 }
