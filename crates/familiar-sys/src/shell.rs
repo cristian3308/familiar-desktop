@@ -284,6 +284,10 @@ fn on_win_event(event: u32, hwnd: HWND, id_object: i32, id_child: i32) {
         }
         EVENT_OBJECT_DESTROY => emit(ShellEvent::WindowsChanged),
         EVENT_OBJECT_SHOW | EVENT_OBJECT_UNCLOAKED if crate::windows_list::is_app_window(hwnd) => {
+            // Hide it here, before it paints, rather than after the event
+            // has crossed two threads: then the open animation starts from
+            // nothing instead of after the window already flashed.
+            crate::prehide::hide(hwnd.into());
             emit(ShellEvent::WindowShown(hwnd.into()));
             emit(ShellEvent::WindowsChanged);
         }

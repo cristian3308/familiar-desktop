@@ -183,7 +183,11 @@ impl Ghost {
             // Windows that are already layered manage their own alpha;
             // leave those alone and just fly the ghost over them.
             let ex = GetWindowLongPtrW(source.get(), GWL_EXSTYLE);
-            if hide_source && ex & WS_EX_LAYERED.0 as isize == 0 {
+            let prehidden = if hide_source { crate::prehide::adopt(source) } else { None };
+            if let Some(original) = prehidden {
+                // Already transparent since the moment it was shown.
+                self.hidden = Some((source.get(), original));
+            } else if hide_source && ex & WS_EX_LAYERED.0 as isize == 0 {
                 SetWindowLongPtrW(source.get(), GWL_EXSTYLE, ex | WS_EX_LAYERED.0 as isize);
                 let _ = SetLayeredWindowAttributes(source.get(), COLORREF(0), 0, LWA_ALPHA);
                 self.hidden = Some((source.get(), ex));

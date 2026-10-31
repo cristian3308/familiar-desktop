@@ -61,6 +61,7 @@ pub fn post(f: impl FnOnce(&App) + Send + 'static) {
 static RESTORE: Mutex<Option<(TaskbarState, PathBuf)>> = Mutex::new(None);
 
 fn restore_everything() {
+    familiar_sys::prehide::release_all();
     if let Ok(mut guard) = RESTORE.lock()
         && let Some((state, marker)) = guard.take()
     {
@@ -465,10 +466,17 @@ impl App {
             ShellEvent::Foreground(h) => self.on_foreground(h),
             ShellEvent::WindowsChanged => self.windows_changed(),
             ShellEvent::TitleChanged(_) => {}
-            ShellEvent::WindowShown(h) if self.animations_on() => self.window_fx.open(self, h),
+            ShellEvent::WindowShown(h) => {
+                if self.animations_on() {
+                    self.window_fx.open(self, h);
+                }
+                // Not animated (too small, a duplicate, animations off):
+                // show it now rather than wait for the watchdog.
+                familiar_sys::prehide::release(h);
+            }
             ShellEvent::MinimizeEnd(h) if self.animations_on() => self.window_fx.restore(self, h),
             ShellEvent::MinimizeStart(h) if self.animations_on() => self.window_fx.minimize(self, h),
-            ShellEvent::WindowShown(_) | ShellEvent::MinimizeStart(_) | ShellEvent::MinimizeEnd(_) => {}
+            ShellEvent::MinimizeStart(_) | ShellEvent::MinimizeEnd(_) => {}
             ShellEvent::EmergencyExit => {
                 log::warn!("Ctrl+Alt+Q: emergency exit");
                 self.quit();
@@ -700,6 +708,7 @@ impl App {
 
     /// Re-reads the four Calm scenarios and applies the strictest rule.
     pub fn evaluate_calm(&self) {
+        familiar_sys::prehide::set_enabled(self.cfg.borrow().window_animations && !self.calm.get());
         let (focused, maximized) = windows_list::foreground_app_state();
         let battery = self.battery.get();
         let inputs = CalmInputs {

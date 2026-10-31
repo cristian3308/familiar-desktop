@@ -29,6 +29,7 @@ pub mod keyboard;
 pub mod media;
 pub mod mouse;
 pub mod power;
+pub mod prehide;
 pub mod privacy;
 pub mod recent;
 pub mod safety;
