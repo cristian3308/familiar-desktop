@@ -55,6 +55,7 @@ impl Lock {
 
     fn present(&self, app: &App, splash: bool) {
         ui::push_theme(&self.ui, &app.theme.borrow());
+        self.load_backdrop();
         self.refresh_clock(app);
         self.ui.set_phase(if splash { 0 } else { 1 });
         self.ui.set_leaving(false);
@@ -85,6 +86,25 @@ impl Lock {
         }
     }
 
+    /// Decodes the wallpaper small on a worker thread, blurs it and shows
+    /// it behind the lock face (plain black until it is ready).
+    fn load_backdrop(&self) {
+        let spawned = std::thread::Builder::new().name("lock-backdrop".into()).spawn(|| {
+            let Some(path) = familiar_sys::wallpaper::current() else { return };
+            let Some(mut pic) = familiar_sys::wallpaper::load(&path, 320) else { return };
+            blur(&mut pic.rgba, pic.width as usize, pic.height as usize, 6);
+            crate::app::post(move |a| {
+                if a.lock.is_visible() {
+                    a.lock.ui.set_backdrop(ui::image_from_rgba(pic.width, pic.height, &pic.rgba));
+                    a.lock.ui.set_has_backdrop(true);
+                }
+            });
+        });
+        if let Err(e) = spawned {
+            log::warn!("lock backdrop: {e}");
+        }
+    }
+
     fn unlock(&self) {
         // Ignore input during the splash and while already leaving.
         if self.ui.get_phase() != 1 || self.ui.get_leaving() {
@@ -95,6 +115,9 @@ impl Lock {
             with_app(|a| {
                 a.lock.visible.set(false);
                 let _ = a.lock.ui.hide();
+                // Drop the wallpaper pixels while hidden.
+                a.lock.ui.set_backdrop(slint::Image::default());
+                a.lock.ui.set_has_backdrop(false);
             })
         });
     }
@@ -146,5 +169,64 @@ impl Lock {
                 None => self.ui.set_has_artwork(false),
             }
         }
+    }
+}
+
+/// Three box-blur passes (close to a Gaussian) over RGBA pixels, in place.
+fn blur(px: &mut [u8], w: usize, h: usize, radius: usize) {
+    if w == 0 || h == 0 || radius == 0 {
+        return;
+    }
+    let mut tmp = px.to_vec();
+    for _ in 0..3 {
+        box_pass(px, &mut tmp, w, h, radius, true);
+        box_pass(&tmp, px, w, h, radius, false);
+    }
+}
+
+/// One horizontal (or vertical) running-average pass from `src` into `dst`.
+fn box_pass(src: &[u8], dst: &mut [u8], w: usize, h: usize, r: usize, horizontal: bool) {
+    let (lines, len) = if horizontal { (h, w) } else { (w, h) };
+    let at = |line: usize, i: usize| if horizontal { (line * w + i) * 4 } else { (i * w + line) * 4 };
+    for line in 0..lines {
+        let mut sum = [0u32; 4];
+        let clamp = |i: isize| i.clamp(0, len as isize - 1) as usize;
+        for i in -(r as isize)..=(r as isize) {
+            let p = at(line, clamp(i));
+            for c in 0..4 {
+                sum[c] += u32::from(src[p + c]);
+            }
+        }
+        let n = (2 * r + 1) as u32;
+        for i in 0..len {
+            let p = at(line, i);
+            for c in 0..4 {
+                dst[p + c] = (sum[c] / n) as u8;
+            }
+            let out = at(line, clamp(i as isize - r as isize));
+            let inn = at(line, clamp(i as isize + r as isize + 1));
+            for c in 0..4 {
+                sum[c] = sum[c] + u32::from(src[inn + c]) - u32::from(src[out + c]);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::blur;
+
+    #[test]
+    fn blur_spreads_a_bright_dot_and_keeps_flat_areas() {
+        let (w, h) = (21, 21);
+        let mut px = vec![0u8; w * h * 4];
+        let centre = (10 * w + 10) * 4;
+        px[centre..centre + 4].copy_from_slice(&[255, 255, 255, 255]);
+        blur(&mut px, w, h, 3);
+        assert!(px[centre] < 255 && px[centre] > 0);
+        assert!(px[(10 * w + 13) * 4] > 0, "light reached a neighbour");
+        let mut flat = vec![120u8; 8 * 8 * 4];
+        blur(&mut flat, 8, 8, 2);
+        assert!(flat.iter().all(|v| *v == 120));
     }
 }

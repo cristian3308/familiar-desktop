@@ -27,6 +27,9 @@ export component LockWindow inherits Window {
     in property <string> artist;
     in property <image> artwork;
     in property <bool> has-artwork;
+    // The wallpaper, small and blurred (upscaling softens it further).
+    in property <image> backdrop;
+    in property <bool> has-backdrop;
 
     callback unlock();
 
@@ -42,6 +45,17 @@ export component LockWindow inherits Window {
             animate y { duration: 380ms; easing: cubic-bezier(0.5, 0, 0.75, 0); }
             animate opacity { duration: 320ms; easing: ease-in-out; }
             background: @linear-gradient(180deg, #0b0b0d 0%, #000000 100%);
+
+            if root.has-backdrop: Image {
+                width: parent.width;
+                height: parent.height;
+                source: root.backdrop;
+                image-fit: cover;
+            }
+            // Darkens the wallpaper so the clock stays readable.
+            if root.has-backdrop: Rectangle {
+                background: @linear-gradient(180deg, #00000066 0%, #000000a6 100%);
+            }
 
             // Faint dot field, the Nothing texture.
             for i in 120: Rectangle {
