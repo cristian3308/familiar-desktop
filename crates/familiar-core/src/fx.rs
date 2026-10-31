@@ -87,6 +87,8 @@ enum Ease {
     Out,
     /// Soft start and soft end (minimising, restoring).
     InOut,
+    /// Constant speed: the genie shapes its own phases.
+    Linear,
 }
 
 #[derive(Clone, Copy)]
@@ -138,6 +140,7 @@ fn ease(e: Ease, t: f32) -> f32 {
     match e {
         // Quintic out: quick, then a long gentle settle (macOS feel).
         Ease::Out => 1.0 - (1.0 - t).powi(5),
+        Ease::Linear => t,
         // Cubic in-out.
         Ease::InOut => {
             if t < 0.5 {
@@ -175,12 +178,14 @@ fn genie_strip(w: Rect, icon: Rect, i: usize, n: usize, t: f32) -> Rect {
     let s0 = i as f32 / n as f32;
     let s1 = (i + 1) as f32 / n as f32;
     let lerp = |a: f32, b: f32, k: f32| a + (b - a) * k;
-    // Phase 1 (0..0.5): stretch and bend. Phase 2 (0.3..1): slide in.
-    let bend = smooth(t / 0.5);
-    let slide = {
-        let v = ((t - 0.3) / 0.7).clamp(0.0, 1.0);
-        v * v * (3.0 - 2.0 * v)
+    // Phase 1 (0..0.55): stretch and bend, easing out so it starts at
+    // once. Phase 2 (0.2..1): slide in, easing in and out. They overlap,
+    // so the motion never stops between phases.
+    let bend = {
+        let v = (t / 0.55).clamp(0.0, 1.0);
+        1.0 - (1.0 - v) * (1.0 - v)
     };
+    let slide = smooth((t - 0.2) / 0.8);
     let top = lerp(w.y as f32, icon.y as f32, slide);
     let bottom = lerp((w.y + w.h) as f32, (icon.y + icon.h) as f32, bend);
     let y = |s: f32| lerp(top, bottom, s);
@@ -258,8 +263,8 @@ impl WindowFx {
                 from: win,
                 to: icon,
                 start: Instant::now(),
-                ms: 420.0,
-                ease: Ease::InOut,
+                ms: 540.0,
+                ease: Ease::Linear,
                 fade_in: 0.0,
                 fade_out: 1.0,
                 hide: true,
@@ -298,10 +303,10 @@ impl WindowFx {
             from,
             to: if genie { icon } else { fit(icon, from) },
             start: Instant::now(),
-            ms: if genie { 460.0 } else { 330.0 },
-            ease: Ease::InOut,
+            ms: if genie { 600.0 } else { 330.0 },
+            ease: if genie { Ease::Linear } else { Ease::InOut },
             fade_in: 0.0,
-            fade_out: if genie { 0.88 } else { 0.7 },
+            fade_out: if genie { 0.9 } else { 0.7 },
             hide: false,
             genie: genie.then_some(false),
         };
