@@ -30,6 +30,21 @@ pub struct AppConfig {
     pub wallpaper: WallpaperConfig,
     /// UI language: es, en, fr or ru.
     pub language: String,
+    pub screensaver: ScreensaverConfig,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ScreensaverConfig {
+    /// Full-screen visualizer while music plays and the computer is idle.
+    pub enabled: bool,
+    pub idle_minutes: u32,
+}
+
+impl Default for ScreensaverConfig {
+    fn default() -> Self {
+        Self { enabled: true, idle_minutes: 3 }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -241,6 +256,7 @@ impl Default for AppConfig {
             calm: CalmConfig::default(),
             wallpaper: WallpaperConfig::default(),
             language: "es".into(),
+            screensaver: ScreensaverConfig::default(),
         }
     }
 }

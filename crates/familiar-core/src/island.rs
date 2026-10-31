@@ -378,7 +378,7 @@ impl Island {
     /// island it takes every mouse event and the island never opens. So the
     /// island is put back on top after such changes and on a slow timer.
     pub fn keep_on_top(&self, app: &App) {
-        if app.lock.is_visible() || app.is_calm() {
+        if app.lock.is_visible() || app.is_calm() || app.screensaver.is_active() {
             return;
         }
         if let Some(h) = self.hwnd.get() {

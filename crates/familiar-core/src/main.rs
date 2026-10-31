@@ -31,6 +31,8 @@ mod lock;
 #[cfg(all(windows, not(feature = "winit")))]
 mod platform;
 #[cfg(windows)]
+mod screensaver;
+#[cfg(windows)]
 mod settings;
 #[cfg(windows)]
 mod topbar;

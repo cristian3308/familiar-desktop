@@ -32,6 +32,7 @@ use crate::indexer::{self, IconWorker};
 use crate::island::Island;
 use crate::launcher::Launcher;
 use crate::lock::Lock;
+use crate::screensaver::Screensaver;
 use crate::settings::Settings;
 use crate::topbar::TopBar;
 use crate::wallfx::WallpaperFx;
@@ -99,6 +100,7 @@ pub struct App {
     pub fx: RefCell<Option<CursorFx>>,
     pub window_fx: WindowFx,
     pub wallpaper_fx: WallpaperFx,
+    pub screensaver: Screensaver,
     pub audio: AudioPipe,
 
     services: RefCell<Services>,
@@ -141,6 +143,7 @@ impl App {
             fx: RefCell::new(None),
             window_fx: WindowFx::new(),
             wallpaper_fx: WallpaperFx::new()?,
+            screensaver: Screensaver::new()?,
             audio: AudioPipe::new(),
             monitor: Cell::new(primary_monitor()),
             cfg: RefCell::new(cfg),
@@ -207,6 +210,7 @@ impl App {
         if self.cfg.borrow().lock_on_start {
             self.lock.show_with_splash(self);
         }
+        self.screensaver.start();
         log::info!("Familiar Core started");
     }
 
@@ -371,6 +375,7 @@ impl App {
         if let Some(x) = &self.island {
             x.apply_theme(self);
         }
+        self.screensaver.apply_theme(self);
         if let Some(x) = &self.widgets {
             x.apply_theme(self);
         }
@@ -683,6 +688,7 @@ impl App {
     }
 
     pub fn render_audio(&self, bands: &[f32]) {
+        self.screensaver.render(self, bands);
         if let Some(i) = &self.island {
             let mut m = familiar_signal::Matrix::new(14, 7);
             m.draw_bars(bands);

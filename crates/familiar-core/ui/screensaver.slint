@@ -1,0 +1,59 @@
+import { Theme, Label } from "theme.slint";
+
+// Full-screen visualizer shown while music plays and nobody touches the
+// computer; any input sends it away.
+export component ScreensaverWindow inherits Window {
+    title: "Familiar Visualizer";
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+    default-font-family: Theme.font;
+
+    in property <image> matrix;
+    in property <string> track;
+    in property <string> artist;
+    in property <string> scene;
+    // Fades in one frame after showing.
+    in property <bool> shown;
+
+    Rectangle {
+        background: black;
+        opacity: root.shown ? 1 : 0;
+        animate opacity { duration: 700ms; easing: ease-in-out; }
+
+        Image {
+            x: root.width * 0.06;
+            y: root.height * 0.12;
+            width: root.width * 0.88;
+            height: root.height * 0.58;
+            source: root.matrix;
+            image-fit: contain;
+        }
+
+        VerticalLayout {
+            x: root.width * 0.08;
+            y: root.height * 0.76;
+            width: root.width * 0.84;
+            spacing: 6px;
+            Text {
+                text: root.track;
+                color: white;
+                font-family: Theme.display;
+                font-size: 34px;
+                font-weight: 700;
+                overflow: elide;
+            }
+            Text {
+                text: root.artist;
+                color: #ffffff99;
+                font-size: 17px;
+                overflow: elide;
+            }
+            Label {
+                text: root.scene;
+                color: Theme.accent;
+                font-size: 11px;
+            }
+        }
+    }
+}
