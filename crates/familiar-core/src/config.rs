@@ -39,6 +39,10 @@ pub struct DockConfig {
     pub show_running: bool,
     /// Draw macOS-style icons for Explorer, Settings and terminals.
     pub custom_icons: bool,
+    /// Style of the Files (Explorer) icon: classic, dot, mono, theme, glass.
+    pub files_style: String,
+    /// Hovering a running app lists its windows above the dock.
+    pub window_previews: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -115,7 +119,14 @@ impl Default for AppConfig {
 
 impl Default for DockConfig {
     fn default() -> Self {
-        Self { enabled: true, reserve_space: true, show_running: true, custom_icons: true }
+        Self {
+            enabled: true,
+            reserve_space: true,
+            show_running: true,
+            custom_icons: true,
+            files_style: "classic".into(),
+            window_previews: true,
+        }
     }
 }
 

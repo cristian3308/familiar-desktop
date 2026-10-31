@@ -254,6 +254,9 @@ export component SettingsWindow inherits Window {
     callback theme-chosen(int);
     callback city-committed(string);
     callback signal-mode-next();
+    callback files-style-next();
+    in property <string> files-style;
+    in-out property <bool> window-previews;
     callback restart();
     callback quit-familiar();
     callback close-window();
@@ -508,6 +511,28 @@ export component SettingsWindow inherits Window {
                             Switch {
                                 y: 12px;
                                 on <=> root.custom-icons;
+                                toggled => {
+                                    root.changed();
+                                }
+                            }
+                        }
+                        Row {
+                            title: "Icono de Archivos";
+                            detail: "Classic, Dot F, Mono, Theme o Glass";
+                            Button {
+                                y: 9px;
+                                text: root.files-style;
+                                clicked => {
+                                    root.files-style-next();
+                                }
+                            }
+                        }
+                        Row {
+                            title: "Ventanas al pasar el ratón";
+                            detail: "Lista las ventanas abiertas de la app";
+                            Switch {
+                                y: 12px;
+                                on <=> root.window-previews;
                                 toggled => {
                                     root.changed();
                                 }

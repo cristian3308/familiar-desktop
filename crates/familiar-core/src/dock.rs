@@ -7,6 +7,9 @@
 //! At rest the native window is only as tall as the plate (that strip is
 //! reserved as an AppBar), so it never covers other windows. While hovered
 //! it grows upward to make room for magnified icons and the tooltip.
+//!
+//! Resting on a running app lists its open windows above the icon; a click
+//! on a title switches to that window.
 
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
@@ -36,11 +39,67 @@ const LAYERED: bool = cfg!(not(feature = "winit"));
 /// Launch target of the trash tile.
 const TRASH: &str = "shell:RecycleBinFolder";
 const TOOLTIP_ROOM: f32 = 36.0;
+/// Space above the icons for the window list (transparent, click-through).
+const PREVIEW_ROOM: f32 = 230.0;
+/// Most windows listed for one app.
+const PREVIEW_MAX: usize = 6;
+const PREVIEW_DELAY: Duration = Duration::from_millis(420);
+const PREVIEW_GRACE: Duration = Duration::from_millis(320);
 const SIDE_ROOM: f32 = 24.0;
 /// Seconds per launch-bounce hop.
 const BOUNCE_PERIOD: f32 = 0.6;
 /// Hops before giving up on an app that never shows a window.
 const BOUNCE_MAX_HOPS: u32 = 6;
+
+/// Look of the Files (Explorer) icon.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FilesStyle {
+    Classic,
+    DotF,
+    Mono,
+    Theme,
+    Glass,
+}
+
+impl FilesStyle {
+    const ALL: [FilesStyle; 5] =
+        [FilesStyle::Classic, FilesStyle::DotF, FilesStyle::Mono, FilesStyle::Theme, FilesStyle::Glass];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            FilesStyle::Classic => "classic",
+            FilesStyle::DotF => "dot",
+            FilesStyle::Mono => "mono",
+            FilesStyle::Theme => "theme",
+            FilesStyle::Glass => "glass",
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            FilesStyle::Classic => "Classic",
+            FilesStyle::DotF => "Dot F",
+            FilesStyle::Mono => "Mono",
+            FilesStyle::Theme => "Theme",
+            FilesStyle::Glass => "Glass",
+        }
+    }
+
+    /// Unknown ids fall back to the classic icon.
+    pub fn from_id(id: &str) -> Self {
+        Self::ALL.into_iter().find(|s| s.id().eq_ignore_ascii_case(id)).unwrap_or(FilesStyle::Classic)
+    }
+
+    pub fn next(self) -> Self {
+        let i = Self::ALL.iter().position(|s| *s == self).unwrap_or(0);
+        Self::ALL[(i + 1) % Self::ALL.len()]
+    }
+
+    /// `variant` of FilesIcon in dock.slint.
+    fn ui_index(self) -> i32 {
+        Self::ALL.iter().position(|s| *s == self).unwrap_or(0) as i32
+    }
+}
 
 /// An icon bouncing while its app starts (macOS-style launch feedback).
 struct Bounce {
@@ -158,6 +217,14 @@ pub struct Dock {
     /// Window width in logical px; fixed per entry set so hovering never
     /// resizes horizontally.
     width: Cell<f32>,
+    /// Entry whose window list is shown, and its windows in list order.
+    preview: Cell<Option<usize>>,
+    preview_windows: RefCell<Vec<Hwnd>>,
+    /// Entry waiting for the hover delay before its list appears.
+    preview_pending: Cell<Option<usize>>,
+    preview_hovered: Cell<bool>,
+    preview_show: Timer,
+    preview_hide: Timer,
 }
 
 impl Dock {
@@ -173,6 +240,8 @@ impl Dock {
         ui.on_drag_started(|x| with_app(|a| a.dock.as_ref().map_or((), |d| d.drag_start(x))));
         ui.on_drag_moved(|x| with_app(|a| a.dock.as_ref().map_or((), |d| d.drag_move(a, x))));
         ui.on_drag_ended(|| with_app(|a| a.dock.as_ref().map_or((), |d| d.drag_end(a))));
+        ui.on_preview_clicked(|i| with_app(|a| a.dock.as_ref().map_or((), |d| d.preview_clicked(i))));
+        ui.on_preview_hover(|h| with_app(|a| a.dock.as_ref().map_or((), |d| d.preview_hover(h))));
         Ok(Self {
             ui,
             model,
@@ -189,6 +258,12 @@ impl Dock {
             bounce_anim: Timer::default(),
             dragging: Cell::new(None),
             width: Cell::new(400.0),
+            preview: Cell::new(None),
+            preview_windows: RefCell::new(Vec::new()),
+            preview_pending: Cell::new(None),
+            preview_hovered: Cell::new(false),
+            preview_show: Timer::default(),
+            preview_hide: Timer::default(),
         })
     }
 
@@ -215,7 +290,8 @@ impl Dock {
     }
 
     fn grown_height(m: &DockMetrics) -> f32 {
-        Self::resting_height(m) + (m.max_icon_size() - m.icon_size) + TOOLTIP_ROOM
+        let preview = if LAYERED { PREVIEW_ROOM } else { 0.0 };
+        Self::resting_height(m) + (m.max_icon_size() - m.icon_size) + TOOLTIP_ROOM + preview
     }
 
     fn window_rect(&self, app: &App, grown: bool) -> Rect {
@@ -226,7 +302,12 @@ impl Dock {
         Rect { x: mon.bounds.x + (mon.bounds.w - w) / 2, y: mon.bounds.y + mon.bounds.h - h, w, h }
     }
 
+    pub fn set_files_style(&self, style: FilesStyle) {
+        self.ui.set_files_style(style.ui_index());
+    }
+
     pub fn show(&self, app: &App) {
+        self.set_files_style(FilesStyle::from_id(&app.cfg.borrow().dock.files_style));
         self.rebuild(app);
         let r = self.window_rect(app, false);
         let w = self.ui.window();
@@ -331,6 +412,99 @@ impl Dock {
         self.ui.set_hovered(hovered.map_or(-1, |i| i as i32));
         self.apply_region(app, &slots, &lifts, plate_w, hovered);
         *self.slots.borrow_mut() = slots;
+        self.track_preview(app, hovered);
+    }
+
+    // ----- window list -------------------------------------------------
+
+    /// Called on every layout: arms the hover delay for a running app,
+    /// and lets the list go once the pointer has left icon and list.
+    fn track_preview(&self, app: &App, hovered: Option<usize>) {
+        if self.dragging.get().is_some() || !LAYERED || !app.cfg.borrow().dock.window_previews {
+            return;
+        }
+        let wanted = hovered.filter(|i| {
+            self.entries.borrow().get(*i).is_some_and(|e| e.special == Special::App && !e.windows.is_empty())
+        });
+        if wanted.is_some() && wanted == self.preview.get() {
+            self.preview_hide.stop();
+            return;
+        }
+        if wanted != self.preview_pending.get() {
+            self.preview_pending.set(wanted);
+            match wanted {
+                Some(_) => self.preview_show.start(TimerMode::SingleShot, PREVIEW_DELAY, || {
+                    with_app(|a| a.dock.as_ref().map_or((), |d| d.open_preview()))
+                }),
+                None => self.preview_show.stop(),
+            }
+        }
+        if self.preview.get().is_some() && !self.preview_hide.running() {
+            self.preview_hide.start(TimerMode::SingleShot, PREVIEW_GRACE, || {
+                with_app(|a| a.dock.as_ref().map_or((), |d| d.maybe_close_preview()))
+            });
+        }
+    }
+
+    fn open_preview(&self) {
+        let Some(i) = self.preview_pending.get() else { return };
+        let entries = self.entries.borrow();
+        let Some(e) = entries.get(i) else { return };
+        let windows: Vec<Hwnd> = e.windows.iter().copied().take(PREVIEW_MAX).collect();
+        if windows.is_empty() {
+            return;
+        }
+        let titles: Vec<slint::SharedString> = windows
+            .iter()
+            .map(|h| {
+                let t = windows_list::title(h.get());
+                if t.trim().is_empty() { e.name.as_str().into() } else { t.into() }
+            })
+            .collect();
+        let fg = windows_list::foreground();
+        self.ui.set_preview_active(windows.iter().position(|h| *h == fg).map_or(-1, |p| p as i32));
+        self.ui.set_preview_titles(Rc::new(VecModel::from(titles)).into());
+        self.ui.set_preview_index(i as i32);
+        *self.preview_windows.borrow_mut() = windows;
+        self.preview.set(Some(i));
+        self.preview_hide.stop();
+    }
+
+    fn maybe_close_preview(&self) {
+        let still_on_icon =
+            self.preview.get().is_some() && self.preview.get().map(|i| i as i32) == Some(self.ui.get_hovered());
+        if !self.preview_hovered.get() && !still_on_icon {
+            self.close_preview();
+        }
+    }
+
+    fn close_preview(&self) {
+        self.preview_show.stop();
+        self.preview_hide.stop();
+        self.preview.set(None);
+        self.preview_pending.set(None);
+        self.preview_hovered.set(false);
+        self.preview_windows.borrow_mut().clear();
+        self.ui.set_preview_index(-1);
+    }
+
+    fn preview_hover(&self, hovered: bool) {
+        self.preview_hovered.set(hovered);
+        if hovered {
+            self.preview_hide.stop();
+        } else if self.preview.get().is_some() {
+            self.preview_hide.start(TimerMode::SingleShot, PREVIEW_GRACE, || {
+                with_app(|a| a.dock.as_ref().map_or((), |d| d.maybe_close_preview()))
+            });
+        }
+    }
+
+    fn preview_clicked(&self, row: i32) {
+        let target = self.preview_windows.borrow().get(row.max(0) as usize).copied();
+        self.close_preview();
+        if let Some(h) = target {
+            windows_list::activate(h);
+        }
     }
 
     /// Clips the window to plate + magnified icons + tooltip. This shapes the
@@ -575,6 +749,8 @@ impl Dock {
         *self.entries.borrow_mut() = entries;
         self.model.set_vec(rows);
         if structure_changed {
+            // Indices moved: a list on screen may point at another app now.
+            self.close_preview();
             self.relayout(app);
         } else {
             self.layout_icons(app);
@@ -641,6 +817,7 @@ impl Dock {
 
     /// Pinned app icons can be dragged to a new place among the pinned ones.
     fn drag_start(&self, x: f32) {
+        self.close_preview();
         log::debug!("dock drag start x={x} hit={:?}", hit_test(&self.slots.borrow(), x));
         let Some(i) = hit_test(&self.slots.borrow(), x) else { return };
         let movable = self.entries.borrow().get(i).is_some_and(|e| e.pinned && e.special == Special::App);
@@ -746,4 +923,23 @@ fn matches(e: &Entry, w: &AppWindow) -> bool {
     }
     !w.exe_path.is_empty()
         && (w.exe_path.eq_ignore_ascii_case(&e.exe_path) || w.exe_path.eq_ignore_ascii_case(&e.app_id))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FilesStyle;
+
+    #[test]
+    fn files_styles_cycle_and_parse() {
+        let mut s = FilesStyle::Classic;
+        let mut seen = Vec::new();
+        for _ in 0..5 {
+            seen.push(s.id());
+            assert_eq!(FilesStyle::from_id(s.id()), s);
+            s = s.next();
+        }
+        assert_eq!(s, FilesStyle::Classic);
+        assert_eq!(seen, ["classic", "dot", "mono", "theme", "glass"]);
+        assert_eq!(FilesStyle::from_id("nope"), FilesStyle::Classic);
+    }
 }

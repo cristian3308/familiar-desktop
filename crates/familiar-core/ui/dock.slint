@@ -75,42 +75,76 @@ component TrashCan inherits Rectangle {
 }
 
 // Files (Explorer): blue tile with a folder.
+// Files (Explorer). `variant`: 0 classic, 1 dot F, 2 mono, 3 theme, 4 glass.
 component FilesIcon inherits Rectangle {
     in property <length> size;
+    in property <int> variant;
+    // 5x7 dot-matrix "F" for the dot variant.
+    property <[bool]> f-dots: [
+        true, true, true, true, true,
+        true, false, false, false, false,
+        true, false, false, false, false,
+        true, true, true, true, false,
+        true, false, false, false, false,
+        true, false, false, false, false,
+        true, false, false, false, false];
     border-radius: self.size * 0.24;
     clip: true;
     border-width: 1px;
-    border-color: #ffffff40;
+    border-color: root.variant == 4 ? #ffffff73 : #ffffff40;
     // Gradients are drawn as paths (see RoundRect in theme.slint).
     RoundRect {
         width: parent.width;
         height: parent.height;
         radius: root.size * 0.24;
-        fill: @linear-gradient(180deg, #6fd3ff 0%, #1a8cff 100%);
+        fill: root.variant == 0 ? @linear-gradient(180deg, #6fd3ff 0%, #1a8cff 100%)
+            : root.variant == 1 ? @linear-gradient(160deg, #2a2a2a 0%, #050505 100%)
+            : root.variant == 2 ? @linear-gradient(180deg, #3a3a3c 0%, #1c1c1e 100%)
+            : root.variant == 3 ? @linear-gradient(180deg, Theme.accent.brighter(0.25) 0%, Theme.accent 100%)
+            : @linear-gradient(180deg, #ffffff59 0%, #ffffff1a 100%);
     }
-    Path {
+    // Folder for every variant except the dot "F".
+    if root.variant != 1: Path {
         width: parent.width;
         height: parent.height;
         viewbox-width: 100;
         viewbox-height: 100;
-        fill: #0b5fd6;
+        fill: root.variant == 0 ? #0b5fd6 : root.variant == 2 ? transparent : #ffffff8c;
+        stroke: root.variant == 2 ? #ffffffd9 : transparent;
+        stroke-width: root.variant == 2 ? 2.4px : 0px;
         commands: "M 18 30 Q 18 25 23 25 L 42 25 L 48 31 L 77 31 Q 82 31 82 36 L 82 44 L 18 44 Z";
     }
-    Path {
+    if root.variant != 1: Path {
         width: parent.width;
         height: parent.height;
         viewbox-width: 100;
         viewbox-height: 100;
-        fill: @linear-gradient(180deg, #ffffff 0%, #dceeff 100%);
+        fill: root.variant == 0 ? @linear-gradient(180deg, #ffffff 0%, #dceeff 100%) : root.variant == 2 ? transparent : #ffffff;
+        stroke: root.variant == 2 ? #ffffffd9 : transparent;
+        stroke-width: root.variant == 2 ? 2.4px : 0px;
         commands: "M 18 40 Q 18 36 23 36 L 77 36 Q 82 36 82 41 L 82 72 Q 82 77 77 77 L 23 77 Q 18 77 18 72 Z";
     }
-    Rectangle {
+    if root.variant != 1: Rectangle {
         x: parent.width * 0.32;
         y: parent.height * 0.52;
         width: parent.width * 0.36;
         height: max(1px, parent.height * 0.05);
         border-radius: self.height / 2;
-        background: #1a8cff;
+        background: root.variant == 0 ? #1a8cff : root.variant == 2 ? #ffffffd9 : root.variant == 3 ? Theme.accent : #ffffff80;
+    }
+    // Dot-matrix F, Nothing style, with a red accent dot.
+    if root.variant == 1: Rectangle {
+        property <length> step: root.size * 0.105;
+        property <length> dot: self.step * 0.7;
+        for d in 35: Rectangle {
+            visible: root.f-dots[d];
+            x: (root.width - 4 * parent.step - parent.dot) / 2 + mod(d, 5) * parent.step;
+            y: (root.height - 6 * parent.step - parent.dot) / 2 + floor(d / 5) * parent.step;
+            width: parent.dot;
+            height: parent.dot;
+            border-radius: parent.dot / 2;
+            background: d == 0 ? Theme.accent : white;
+        }
     }
 }
 
@@ -218,6 +252,11 @@ export component DockWindow inherits Window {
     in property <int> hovered: -1;
     // Icon being dragged to a new place (-1 = none).
     in property <int> drag-index: -1;
+    in property <int> files-style;
+    // Window list shown above a running app (-1 = hidden).
+    in property <int> preview-index: -1;
+    in property <[string]> preview-titles;
+    in property <int> preview-active: -1;
 
     callback pointer-moved(length);
     callback hover-changed(bool);
@@ -227,6 +266,8 @@ export component DockWindow inherits Window {
     callback drag-started(length);
     callback drag-moved(length);
     callback drag-ended();
+    callback preview-clicked(int);
+    callback preview-hover(bool);
 
     property <length> press-x;
     property <bool> dragging;
@@ -328,6 +369,7 @@ export component DockWindow inherits Window {
         // macOS-style icons for Windows' own apps.
         if item.kind == 3: FilesIcon {
             size: parent.width;
+            variant: root.files-style;
             opacity: root.pressed && i == root.hovered ? 0.55 : 1;
         }
         if item.kind == 4: SettingsIcon {
@@ -417,6 +459,70 @@ export component DockWindow inherits Window {
             }
             if ev.kind == PointerEventKind.down && ev.button == PointerEventButton.middle {
                 root.middle-clicked(self.mouse-x);
+            }
+        }
+    }
+
+    // Open windows of the hovered app; click one to switch to it.
+    if root.preview-index >= 0 && root.preview-index < root.icons.length: Rectangle {
+        property <DockIcon> item: root.icons[root.preview-index];
+        property <length> row-h: 30px;
+        width: 260px;
+        height: root.preview-titles.length * self.row-h + 34px;
+        x: max(2px, min(root.width - self.width - 2px, item.x + item.size / 2 - self.width / 2));
+        y: root.icons-bottom - item.size - self.height - 12px;
+        border-radius: 16px;
+        background: Theme.island;
+        border-width: 1px;
+        border-color: #ffffff26;
+        preview-touch := TouchArea {
+            changed has-hover => {
+                root.preview-hover(self.has-hover);
+            }
+        }
+        Label {
+            x: 14px;
+            y: 9px;
+            height: 14px;
+            text: item.name.to-uppercase() + " · " + root.preview-titles.length + (root.preview-titles.length == 1 ? " VENTANA" : " VENTANAS");
+            color: #ffffff99;
+            font-size: 9px;
+        }
+        for title[w] in root.preview-titles: Rectangle {
+            x: 6px;
+            y: 28px + w * parent.row-h;
+            width: parent.width - 12px;
+            height: parent.row-h - 2px;
+            border-radius: 10px;
+            background: row-touch.has-hover ? #ffffff1f : (w == root.preview-active ? #ffffff12 : transparent);
+            Rectangle {
+                x: 9px;
+                y: (parent.height - 6px) / 2;
+                width: 6px;
+                height: 6px;
+                border-radius: 3px;
+                background: w == root.preview-active ? Theme.accent : #ffffff59;
+            }
+            Text {
+                x: 24px;
+                width: parent.width - 32px;
+                height: parent.height;
+                text: title;
+                color: white;
+                font-size: 12px;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+            row-touch := TouchArea {
+                mouse-cursor: pointer;
+                changed has-hover => {
+                    if self.has-hover {
+                        root.preview-hover(true);
+                    }
+                }
+                clicked => {
+                    root.preview-clicked(w);
+                }
             }
         }
     }

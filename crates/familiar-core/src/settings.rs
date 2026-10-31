@@ -46,6 +46,17 @@ impl Settings {
                 }
             })
         });
+        ui.on_files_style_next(|| {
+            with_app(|a| {
+                let next = crate::dock::FilesStyle::from_id(&a.cfg.borrow().dock.files_style).next();
+                a.cfg.borrow_mut().dock.files_style = next.id().into();
+                a.save_config();
+                a.settings.ui.set_files_style(next.name().into());
+                if let Some(d) = &a.dock {
+                    d.set_files_style(next);
+                }
+            })
+        });
         ui.on_signal_mode_next(|| {
             with_app(|a| {
                 if let Some(w) = &a.widgets {
@@ -160,6 +171,8 @@ impl Settings {
 
         let cfg = app.cfg.borrow();
         self.ui.set_custom_icons(cfg.dock.custom_icons);
+        self.ui.set_window_previews(cfg.dock.window_previews);
+        self.ui.set_files_style(crate::dock::FilesStyle::from_id(&cfg.dock.files_style).name().into());
         self.ui.set_show_running(cfg.dock.show_running);
         let has = |id: &str| cfg.widgets.enabled && cfg.widgets.items.iter().any(|i| i == id);
         self.ui.set_w_calendar(has(WIDGETS[0]));
@@ -223,6 +236,7 @@ impl Settings {
             let dock_changed = cfg.dock.custom_icons != self.ui.get_custom_icons()
                 || cfg.dock.show_running != self.ui.get_show_running();
             cfg.dock.custom_icons = self.ui.get_custom_icons();
+            cfg.dock.window_previews = self.ui.get_window_previews();
             cfg.dock.show_running = self.ui.get_show_running();
             // Keep the user's order for widgets they already had.
             let mut new_items: Vec<String> = cfg.widgets.items.iter().filter(|i| items.contains(i)).cloned().collect();
