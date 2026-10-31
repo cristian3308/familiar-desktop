@@ -78,6 +78,10 @@ export component TopBarWindow inherits Window {
     callback lang-clicked();
     callback privacy-clicked();
     callback control-center-clicked();
+    callback tray-clicked();
+    // The Windows taskbar is hidden, so its tray can be peeked at from here.
+    in property <bool> tray-available;
+    in property <bool> tray-open;
 
     // Translucent, like the macOS menu bar: the wallpaper shows through.
     Rectangle {
@@ -175,6 +179,21 @@ export component TopBarWindow inherits Window {
                     text: root.ui-lang;
                     color: Theme.text;
                 }
+            }
+        }
+        // Notification area (tray icons) of the hidden Windows taskbar.
+        if root.tray-available: Item {
+            width: 26px;
+            clicked => {
+                root.tray-clicked();
+            }
+            Text {
+                text: root.tray-open ? "\u{E70D}" : "\u{E70E}";
+                font-family: Theme.icons;
+                font-size: 10px;
+                color: Theme.text;
+                horizontal-alignment: center;
+                vertical-alignment: center;
             }
         }
         // Control Center: two little switches, like macOS.

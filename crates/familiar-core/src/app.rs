@@ -110,6 +110,10 @@ pub struct App {
     calm: Cell<bool>,
     /// Calm rules currently in force (see `CalmConfig::evaluate`).
     calm_state: Cell<CalmState>,
+    /// The taskbar is shown for a moment to reach its tray icons.
+    tray_peek: Cell<bool>,
+    tray_timer: Timer,
+    tray_idle: Cell<u32>,
     custom_cursors: Cell<bool>,
     requested_icons: RefCell<std::collections::HashSet<String>>,
     windows_debounce: Timer,
@@ -157,6 +161,9 @@ impl App {
             battery: Cell::new(Battery::default()),
             calm: Cell::new(false),
             calm_state: Cell::new(CalmState::default()),
+            tray_peek: Cell::new(false),
+            tray_timer: Timer::default(),
+            tray_idle: Cell::new(0),
             custom_cursors: Cell::new(false),
             requested_icons: RefCell::new(Default::default()),
             windows_debounce: Timer::default(),
@@ -497,11 +504,12 @@ impl App {
     }
 
     fn on_foreground(&self, fg: Hwnd) {
-        if self.cfg.borrow().hide_taskbar && RESTORE.lock().is_ok_and(|g| g.is_some()) {
+        if self.cfg.borrow().hide_taskbar && RESTORE.lock().is_ok_and(|g| g.is_some()) && !self.tray_peek.get() {
             // Explorer re-shows its taskbar on some Start/notification paths.
             taskbar::hide_windows();
         }
         if let Some(t) = &self.topbar {
+            t.ui.set_tray_available(self.taskbar_hidden_by_us());
             t.set_app_name(&self.app_name_for(fg));
             t.set_layout_code(&power::keyboard_layout_code());
         }
@@ -620,6 +628,55 @@ impl App {
 
     pub fn on_fullscreen_hint(&self, _open: bool) {
         self.evaluate_calm();
+    }
+
+    /// Top bar chevron: shows the hidden Windows taskbar so its tray icons
+    /// (OneDrive, Discord, antivirus...) can be used, then hides it again
+    /// once the pointer has been away from it for a few seconds.
+    pub fn toggle_tray(&self) {
+        if self.tray_peek.get() {
+            return self.end_tray_peek();
+        }
+        if !self.taskbar_hidden_by_us() {
+            return;
+        }
+        self.tray_peek.set(true);
+        self.tray_idle.set(0);
+        taskbar::show_windows();
+        if let Some(t) = &self.topbar {
+            t.ui.set_tray_open(true);
+        }
+        self.tray_timer.start(TimerMode::Repeated, Duration::from_millis(500), || {
+            with_app(|a| a.tray_tick());
+        });
+    }
+
+    fn tray_tick(&self) {
+        let mut p = windows::Win32::Foundation::POINT::default();
+        let over = unsafe { windows::Win32::UI::WindowsAndMessaging::GetCursorPos(&mut p) }.is_ok()
+            && taskbar::primary_rect()
+                .is_some_and(|r| p.x >= r.x && p.x < r.x + r.w && p.y >= r.y - 400 && p.y < r.y + r.h);
+        // The 400 px above it cover the tray's pop-up panels.
+        let idle = if over { 0 } else { self.tray_idle.get() + 1 };
+        self.tray_idle.set(idle);
+        if idle >= 8 {
+            self.end_tray_peek();
+        }
+    }
+
+    fn end_tray_peek(&self) {
+        self.tray_timer.stop();
+        self.tray_peek.set(false);
+        if self.taskbar_hidden_by_us() {
+            taskbar::hide_windows();
+        }
+        if let Some(t) = &self.topbar {
+            t.ui.set_tray_open(false);
+        }
+    }
+
+    fn taskbar_hidden_by_us(&self) -> bool {
+        self.cfg.borrow().hide_taskbar && RESTORE.lock().is_ok_and(|g| g.is_some())
     }
 
     /// Switches the UI language everywhere and remembers it.
@@ -873,7 +930,9 @@ impl App {
 
 fn print_usage() {
     println!(
-        "familiar-core [--restore-taskbar] [--export-theme] [--import-theme <FAM1:...>] [--list-themes]\n\
+        "familiar-core [--install] [--uninstall] [--restore-taskbar] [--export-theme] [--import-theme <FAM1:...>] [--list-themes]\n\
+         \n  --install           copy to %LOCALAPPDATA%\\Programs\\FamiliarCore, add a Start menu shortcut, start it\
+         \n  --uninstall         remove the shortcut, the installed copy and the autostart entry\
          \n  --restore-taskbar   show the Windows taskbar again (after a crash) and exit\
          \n  --export-theme      print the active theme as a share code\
          \n  --import-theme CODE save a shared theme and make it active\
@@ -906,6 +965,33 @@ fn run_cli(args: &[String], paths: &Paths) -> Option<i32> {
         "--help" | "-h" => {
             print_usage();
             Some(0)
+        }
+        "--install" => match familiar_sys::install::install() {
+            Ok(exe) => {
+                println!("installed to {}", exe.display());
+                log::info!("installed to {}", exe.display());
+                // Start the installed copy (the Run entry follows it).
+                let _ = std::process::Command::new(&exe).spawn();
+                Some(0)
+            }
+            Err(e) => {
+                eprintln!("install failed: {e}");
+                log::error!("install failed: {e}");
+                Some(1)
+            }
+        },
+        "--uninstall" => {
+            familiar_sys::autostart::set_enabled(false);
+            match familiar_sys::install::uninstall() {
+                Ok(()) => {
+                    println!(r"uninstalled (settings in %APPDATA%\FamiliarCore are kept)");
+                    Some(0)
+                }
+                Err(e) => {
+                    eprintln!("uninstall failed: {e}");
+                    Some(1)
+                }
+            }
         }
         "--restore-taskbar" => {
             if !restore_from_marker(paths) {

@@ -23,6 +23,7 @@ pub mod desktop;
 pub mod dwm;
 pub mod ghost;
 pub mod icons;
+pub mod install;
 pub mod keyboard;
 pub mod media;
 pub mod mouse;

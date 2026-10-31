@@ -32,6 +32,7 @@ impl TopBar {
         ui.on_layout_clicked(|| open("ms-settings:regionlanguage"));
         ui.on_privacy_clicked(|| open("ms-settings:privacy-microphone"));
         ui.on_control_center_clicked(|| with_app(|a| a.control_center.toggle(a)));
+        ui.on_tray_clicked(|| with_app(|a| a.toggle_tray()));
         ui.on_lang_clicked(|| with_app(|a| a.set_language(crate::i18n::current().next())));
         Ok(Self { ui, appbar: RefCell::new(None), hwnd: Default::default() })
     }

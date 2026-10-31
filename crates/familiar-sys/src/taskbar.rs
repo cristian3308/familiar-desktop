@@ -73,6 +73,29 @@ pub fn hide_windows() {
     }
 }
 
+/// Shows the taskbar windows again without touching auto-hide (to reach
+/// the notification area for a moment).
+pub fn show_windows() {
+    for h in all_taskbars() {
+        unsafe {
+            let _ = ShowWindow(h, SW_SHOW);
+        }
+    }
+    if let Some(tray) = primary() {
+        unsafe {
+            let _ = windows::Win32::UI::WindowsAndMessaging::SetForegroundWindow(tray);
+        }
+    }
+}
+
+/// Screen rectangle of the primary taskbar.
+pub fn primary_rect() -> Option<crate::window::Rect> {
+    let tray = primary()?;
+    let mut r = windows::Win32::Foundation::RECT::default();
+    unsafe { windows::Win32::UI::WindowsAndMessaging::GetWindowRect(tray, &mut r) }.ok()?;
+    Some(crate::window::Rect::from_win(r))
+}
+
 pub fn is_taskbar_window(hwnd: HWND) -> bool {
     all_taskbars().contains(&hwnd)
 }
