@@ -114,7 +114,7 @@ impl TopBar {
     pub fn refresh_clock(&self, app: &App) {
         let text = clock::time_string();
         self.ui.set_clock(text.as_str().into());
-        self.ui.set_date(clock::date_string(&app.cfg.borrow().top_bar.date_format).to_uppercase().into());
+        self.ui.set_date(crate::i18n::date(&app.cfg.borrow().top_bar.date_format).to_uppercase().into());
 
         // The user's format decides 12 h vs 24 h; the digits are drawn as a
         // dot-matrix image, the "AM"/"PM" suffix as a small label.

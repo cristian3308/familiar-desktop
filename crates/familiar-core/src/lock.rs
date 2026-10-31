@@ -121,7 +121,7 @@ impl Lock {
         self.ui.set_clock_dots(ui::image_from_rgba(w, h, &px));
         self.ui.set_clock_width(w as f32 / scale);
         self.ui.set_clock_height(h as f32 / scale);
-        let date = clock::date_string("dddd, d 'de' MMMM");
+        let date = crate::i18n::date(crate::i18n::long_date_picture());
         let mut c = date.chars();
         let date: String = c.next().map(|f| f.to_uppercase().chain(c).collect()).unwrap_or_default();
         self.ui.set_date(date.into());

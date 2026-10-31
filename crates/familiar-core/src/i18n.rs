@@ -103,7 +103,62 @@ const TABLE: &[[&str; 4]] = &[
     ["Carpeta reciente", "Recent folder", "Dossier récent", "Недавняя папка"],
     ["Archivo reciente", "Recent file", "Fichier récent", "Недавний файл"],
     ["Escritorio", "Desktop", "Bureau", "Рабочий стол"],
+    // Weather (familiar_sys::weather::Sky::describe_es).
+    ["Despejado", "Clear", "Dégagé", "Ясно"],
+    ["Parcialmente nublado", "Partly cloudy", "Partiellement nuageux", "Переменная облачность"],
+    ["Nublado", "Cloudy", "Nuageux", "Облачно"],
+    ["Niebla", "Fog", "Brouillard", "Туман"],
+    ["Lluvia", "Rain", "Pluie", "Дождь"],
+    ["Nieve", "Snow", "Neige", "Снег"],
+    ["Tormenta", "Storm", "Orage", "Гроза"],
+    // Dock menu.
+    ["Abrir", "Open", "Ouvrir", "Открыть"],
+    ["Nueva ventana", "New window", "Nouvelle fenêtre", "Новое окно"],
+    ["Cerrar todas las ventanas", "Close all windows", "Fermer toutes les fenêtres", "Закрыть все окна"],
+    ["Fijar en el Dock", "Keep in Dock", "Garder dans le Dock", "Закрепить в Доке"],
+    ["Quitar del Dock", "Remove from Dock", "Retirer du Dock", "Убрать из Дока"],
+    ["Mostrar en el Explorador", "Show in Explorer", "Afficher dans l'Explorateur", "Показать в Проводнике"],
+    ["Vaciar la papelera", "Empty Trash", "Vider la corbeille", "Очистить корзину"],
+    ["Abrir la papelera", "Open Trash", "Ouvrir la corbeille", "Открыть корзину"],
+    ["Ajustes del Dock", "Dock settings", "Réglages du Dock", "Настройки Дока"],
 ];
+
+/// Locale for Windows date formatting; `None` keeps the user's own (for
+/// Spanish, so their regional settings still apply).
+pub fn locale() -> Option<&'static str> {
+    match current() {
+        Lang::Es => None,
+        Lang::En => Some("en-US"),
+        Lang::Fr => Some("fr-FR"),
+        Lang::Ru => Some("ru-RU"),
+    }
+}
+
+/// Long date for the lock face ("viernes, 30 de octubre").
+pub fn long_date_picture() -> &'static str {
+    match current() {
+        Lang::Es => "dddd, d 'de' MMMM",
+        Lang::En => "dddd, MMMM d",
+        Lang::Fr => "dddd d MMMM",
+        Lang::Ru => "dddd, d MMMM",
+    }
+}
+
+/// Calendar column headers, Monday first.
+pub fn weekday_initials() -> [&'static str; 7] {
+    match current() {
+        Lang::Es => ["L", "M", "X", "J", "V", "S", "D"],
+        Lang::En => ["M", "T", "W", "T", "F", "S", "S"],
+        Lang::Fr => ["L", "M", "M", "J", "V", "S", "D"],
+        Lang::Ru => ["П", "В", "С", "Ч", "П", "С", "В"],
+    }
+}
+
+/// A date in the current language.
+#[cfg(windows)]
+pub fn date(picture: &str) -> String {
+    familiar_sys::clock::date_string_in(locale(), picture)
+}
 
 fn translate(lang: Lang, es: &'static str) -> &'static str {
     let col = Lang::ALL.iter().position(|l| *l == lang).unwrap_or(0);

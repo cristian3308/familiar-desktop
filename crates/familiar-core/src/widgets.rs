@@ -354,7 +354,7 @@ impl Widgets {
         ui.set_w_ready(true);
         ui.set_w_city(w.city.as_str().into());
         ui.set_w_temp(format!("{:.0}°", w.temp).into());
-        ui.set_w_desc(Sky::from_code(w.code).describe_es().into());
+        ui.set_w_desc(crate::i18n::t(Sky::from_code(w.code).describe_es()).into());
         ui.set_w_hilo(format!("Máx {:.0}°  Mín {:.0}°", w.high, w.low).into());
         ui.set_w_sky(sky_index(w.code));
         ui.set_w_day(w.is_day);
@@ -388,9 +388,11 @@ impl Widgets {
         let Some(widget) = self.get(Kind::Calendar) else { return };
         let now = clock::now();
         let ui = &widget.ui;
-        ui.set_cal_weekday(clock::date_string("dddd").to_uppercase().into());
+        ui.set_cal_weekday(crate::i18n::date("dddd").to_uppercase().into());
+        let heads: Vec<slint::SharedString> = crate::i18n::weekday_initials().iter().map(|s| (*s).into()).collect();
+        ui.set_cal_headers(Rc::new(VecModel::from(heads)).into());
         ui.set_cal_day(now.day.to_string().into());
-        ui.set_cal_month(capitalize(&clock::date_string("MMMM yyyy")).into());
+        ui.set_cal_month(capitalize(&crate::i18n::date("MMMM yyyy")).into());
         let cells: Vec<CalCell> = month_grid(now.year, now.month, now.day, now.weekday)
             .into_iter()
             .map(|(d, today, muted)| CalCell { label: d.to_string().into(), today, muted })
@@ -468,7 +470,7 @@ impl Widgets {
         m.draw_text(&format!("{:02}:{:02}", now.hour, now.minute), 0, 0, 1.0);
         let (iw, ih, px) = raster::render(&m, &Self::style(app, 8));
         w.ui.set_matrix(ui::image_from_rgba(iw, ih, &px));
-        w.ui.set_subcaption(clock::date_string("ddd d").to_uppercase().into());
+        w.ui.set_subcaption(crate::i18n::date("ddd d").to_uppercase().into());
     }
 
     /// A spectrum frame from the audio thread: it drives both animations.

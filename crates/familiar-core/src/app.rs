@@ -627,6 +627,13 @@ impl App {
             t.set_app_name(&self.app_name_for(windows_list::foreground()));
         }
         self.settings.refresh_texts(self);
+        if let Some(t) = &self.topbar {
+            t.refresh_clock(self);
+        }
+        if let Some(w) = &self.widgets {
+            w.tick_clock(self);
+            w.refresh_weather(self);
+        }
     }
 
     /// Re-reads the four Calm scenarios and applies the strictest rule.
