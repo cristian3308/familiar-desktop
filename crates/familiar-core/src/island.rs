@@ -53,6 +53,8 @@ pub struct Island {
     known_outputs: RefCell<Option<(Vec<String>, Option<String>)>>,
     focus_timer: Timer,
     focus_end: Cell<Option<Instant>>,
+    /// Keeps the island above the top bar (see `keep_on_top`).
+    z_guard: Timer,
 }
 
 impl Island {
@@ -96,6 +98,7 @@ impl Island {
             known_outputs: RefCell::new(None),
             focus_timer: Timer::default(),
             focus_end: Cell::new(None),
+            z_guard: Timer::default(),
         })
     }
 
@@ -151,6 +154,13 @@ impl Island {
         familiar_sys::dwm::hide_border(h);
         familiar_sys::dwm::set_rounded(h, false);
         window::raise_topmost(h);
+        self.z_guard.start(TimerMode::Repeated, Duration::from_millis(1500), || {
+            with_app(|a| {
+                if let Some(i) = a.island.as_ref() {
+                    i.keep_on_top(a);
+                }
+            })
+        });
         if app.cfg.borrow().island.device_alerts {
             self.poll_devices(app);
             self.devices.start(TimerMode::Repeated, DEVICE_POLL, || {
@@ -360,6 +370,19 @@ impl Island {
             self.ui.set_focus_text(format_clock(focus_length(app)).into());
             familiar_sys::util::chime();
             self.alert(app, GLYPH_TIMER, t("Focus terminado · tómate un descanso"));
+        }
+    }
+
+    /// The island sits on top of the top bar. Both are topmost, and the bar
+    /// is raised again by AppBar and work-area changes; once it is above the
+    /// island it takes every mouse event and the island never opens. So the
+    /// island is put back on top after such changes and on a slow timer.
+    pub fn keep_on_top(&self, app: &App) {
+        if app.lock.is_visible() || app.is_calm() {
+            return;
+        }
+        if let Some(h) = self.hwnd.get() {
+            window::raise_topmost(h.get());
         }
     }
 

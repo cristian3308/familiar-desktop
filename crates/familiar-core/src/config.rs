@@ -231,7 +231,7 @@ impl Default for AppConfig {
             hide_taskbar: true,
             autostart: false,
             window_animations: true,
-            genie_effect: false,
+            genie_effect: true,
             lock_on_start: true,
             dock: DockConfig::default(),
             top_bar: TopBarConfig::default(),

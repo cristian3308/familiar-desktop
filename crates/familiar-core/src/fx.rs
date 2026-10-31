@@ -120,9 +120,14 @@ impl Flight {
     }
 }
 
-/// Thumbnails used for the genie effect. DWM stops drawing a host's
-/// thumbnails somewhere past this many, so it cannot simply be raised.
-const GENIE_STRIPS: usize = 64;
+/// Thumbnails used for the genie effect: thin strips keep the curved
+/// sides smooth (240 measured fine on a 1080p screen; 64 looked stepped).
+const GENIE_STRIPS: usize = 240;
+
+/// Strip count, overridable with FAMILIAR_GENIE_STRIPS for tuning.
+fn genie_strips() -> usize {
+    std::env::var("FAMILIAR_GENIE_STRIPS").ok().and_then(|v| v.parse().ok()).unwrap_or(GENIE_STRIPS).clamp(8, 400)
+}
 
 fn smooth(x: f32) -> f32 {
     let x = x.clamp(0.0, 1.0);
@@ -160,26 +165,38 @@ fn fit(icon: Rect, window: Rect) -> Rect {
 }
 
 /// Strip `i` of `n` at genie progress `t` (0 = window, 1 = inside the icon).
+///
+/// Like macOS: first the window's bottom edge stretches down into the icon
+/// while its sides curve towards it (an S-curve that is untouched at the
+/// top and icon-wide at the bottom); then the whole body pours down through
+/// that funnel. The squeeze depends on the strip's position on screen, so
+/// content narrows as it slides down.
 fn genie_strip(w: Rect, icon: Rect, i: usize, n: usize, t: f32) -> Rect {
     let s0 = i as f32 / n as f32;
     let s1 = (i + 1) as f32 / n as f32;
-    let sc = (s0 + s1) / 2.0;
-    // The sides bend first (lower rows sooner), drawing the funnel...
-    let bend = smooth(t * 2.2);
-    let squeeze = bend * smooth((sc - 1.0 + bend * 1.6) / 0.9);
-    // ...then the whole body pours down into the icon.
-    let slide = smooth((t - 0.25) / 0.75);
     let lerp = |a: f32, b: f32, k: f32| a + (b - a) * k;
-    let y = |s: f32| lerp(w.y as f32 + s * w.h as f32, icon.y as f32 + s * icon.h as f32, slide);
-    let left = lerp(w.x as f32, icon.x as f32, squeeze);
-    let right = lerp((w.x + w.w) as f32, (icon.x + icon.w) as f32, squeeze);
-    let (top, bottom) = (y(s0), y(s1));
+    // Phase 1 (0..0.5): stretch and bend. Phase 2 (0.3..1): slide in.
+    let bend = smooth(t / 0.5);
+    let slide = {
+        let v = ((t - 0.3) / 0.7).clamp(0.0, 1.0);
+        v * v * (3.0 - 2.0 * v)
+    };
+    let top = lerp(w.y as f32, icon.y as f32, slide);
+    let bottom = lerp((w.y + w.h) as f32, (icon.y + icon.h) as f32, bend);
+    let y = |s: f32| lerp(top, bottom, s);
+    let (y0, y1) = (y(s0), y(s1));
+    // Where this strip is between the window's top and the icon's bottom.
+    let span = ((icon.y + icon.h) - w.y).max(1) as f32;
+    let f = (((y0 + y1) / 2.0 - w.y as f32) / span).clamp(0.0, 1.0);
+    let k = (bend * smooth(f)).max(slide * slide);
+    let left = lerp(w.x as f32, icon.x as f32, k);
+    let right = lerp((w.x + w.w) as f32, (icon.x + icon.w) as f32, k);
     Rect {
         x: left.round() as i32,
-        y: top.floor() as i32,
+        y: y0.floor() as i32,
         w: (right.round() - left.round()).max(1.0) as i32,
         // Overlap by a pixel so neighbouring strips never leave a seam.
-        h: (bottom.ceil() - top.floor()).max(1.0) as i32 + 1,
+        h: (y1.ceil() - y0.floor()).max(1.0) as i32 + 1,
     }
 }
 
@@ -303,13 +320,14 @@ impl WindowFx {
             *self.ghost.borrow_mut() = Ghost::new();
         }
         let area = app.monitor.get().bounds;
-        let strips = if f.genie.is_some() { GENIE_STRIPS } else { 1 };
+        let strips = if f.genie.is_some() { genie_strips() } else { 1 };
         let started = self.ghost.borrow_mut().as_mut().is_some_and(|g| g.begin(hwnd, area, f.hide, strips));
         if !started {
             log::debug!("window fx: no thumbnail for {hwnd:?}");
             return;
         }
-        log::debug!("window fx: {:?} -> {:?} genie={:?}", f.from, f.to, f.genie);
+        let thumbs = self.ghost.borrow().as_ref().map_or(0, |g| g.strips());
+        log::debug!("window fx: {:?} -> {:?} genie={:?} thumbs={thumbs}", f.from, f.to, f.genie);
         // Clock starts once the ghost exists, so setup time never eats
         // into the first frames.
         self.flight.set(Some(Flight { start: Instant::now(), ..f }));
@@ -369,4 +387,38 @@ impl Drop for WindowFx {
 fn shrink(r: Rect, k: f32) -> Rect {
     let (w, h) = ((r.w as f32 * k) as i32, (r.h as f32 * k) as i32);
     Rect { x: r.x + (r.w - w) / 2, y: r.y + (r.h - h) / 2, w, h }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Rect, genie_strip};
+
+    const WIN: Rect = Rect { x: 300, y: 160, w: 1100, h: 700 };
+    const ICON: Rect = Rect { x: 1095, y: 1018, w: 45, h: 45 };
+
+    #[test]
+    fn genie_starts_as_the_window_and_ends_in_the_icon() {
+        let n = 100;
+        let first = genie_strip(WIN, ICON, 0, n, 0.0);
+        assert_eq!((first.x, first.y, first.w), (WIN.x, WIN.y, WIN.w));
+        for i in 0..n {
+            let r = genie_strip(WIN, ICON, i, n, 1.0);
+            assert!(r.x >= ICON.x - 1 && r.x + r.w <= ICON.x + ICON.w + 1, "strip {i}: {r:?}");
+            assert!(r.y >= ICON.y - 1 && r.y <= ICON.y + ICON.h, "strip {i}: {r:?}");
+        }
+    }
+
+    #[test]
+    fn genie_sides_curve_smoothly() {
+        // Halfway through, the top is still wide, the bottom near the icon,
+        // and widths never jump between neighbouring strips.
+        let n = 240;
+        let rows: Vec<Rect> = (0..n).map(|i| genie_strip(WIN, ICON, i, n, 0.5)).collect();
+        assert!(rows[0].w > WIN.w / 2);
+        assert!(rows[n - 1].w < WIN.w / 4);
+        for pair in rows.windows(2) {
+            assert!((pair[0].w - pair[1].w).abs() <= 24, "{:?} -> {:?}", pair[0], pair[1]);
+            assert!(pair[1].w <= pair[0].w + 1, "widens downwards: {:?} -> {:?}", pair[0], pair[1]);
+        }
+    }
 }

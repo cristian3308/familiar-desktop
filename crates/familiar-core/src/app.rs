@@ -503,6 +503,9 @@ impl App {
         if let Some(d) = &self.dock {
             d.set_foreground(fg);
         }
+        if let Some(i) = &self.island {
+            i.keep_on_top(self);
+        }
         if let Some(w) = &self.widgets
             && !self.cfg.borrow().widgets.attach_to_wallpaper
         {
@@ -518,6 +521,9 @@ impl App {
             with_app(|a| {
                 if let Some(d) = &a.dock {
                     d.rebuild(a);
+                }
+                if let Some(i) = &a.island {
+                    i.keep_on_top(a);
                 }
             })
         });
@@ -546,6 +552,10 @@ impl App {
             && let Some(w) = &self.widgets
         {
             w.relayout(self);
+        }
+        // Re-reserving the top bar raises it above the island.
+        if let Some(i) = &self.island {
+            i.keep_on_top(self);
         }
     }
 
