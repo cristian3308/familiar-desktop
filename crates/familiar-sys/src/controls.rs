@@ -6,8 +6,12 @@
 
 use windows::Devices::Radios::{Radio, RadioKind, RadioState};
 use windows::Networking::Connectivity::NetworkInformation;
+use windows::Win32::Foundation::PROPERTYKEY;
 use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
-use windows::Win32::Media::Audio::{IMMDeviceEnumerator, MMDeviceEnumerator, eConsole, eRender};
+use windows::Win32::Media::Audio::{
+    DEVICE_STATE_ACTIVE, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator, eConsole, eRender,
+};
+use windows::Win32::System::Com::STGM_READ;
 use windows::Win32::System::Com::{CLSCTX_ALL, CoCreateInstance};
 
 use crate::com::ComGuard;
@@ -17,6 +21,39 @@ fn endpoint_volume() -> Option<IAudioEndpointVolume> {
         let devices: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).ok()?;
         let device = devices.GetDefaultAudioEndpoint(eRender, eConsole).ok()?;
         device.Activate::<IAudioEndpointVolume>(CLSCTX_ALL, None).ok()
+    }
+}
+
+/// PKEY_Device_FriendlyName ("Headphones (WH-1000XM4)").
+const FRIENDLY_NAME: PROPERTYKEY =
+    PROPERTYKEY { fmtid: windows::core::GUID::from_u128(0xa45c254e_df1c_4efd_8020_67d146a850e0), pid: 14 };
+
+fn device_name(device: &IMMDevice) -> Option<String> {
+    unsafe {
+        let store = device.OpenPropertyStore(STGM_READ).ok()?;
+        let value = store.GetValue(&FRIENDLY_NAME).ok()?;
+        let name = value.to_string();
+        (!name.is_empty()).then_some(name)
+    }
+}
+
+/// Audio outputs that are plugged in / connected right now, and the name
+/// of the default one. Cheap enough to poll every couple of seconds.
+pub fn audio_outputs() -> (Vec<String>, Option<String>) {
+    unsafe {
+        let Ok(devices) = CoCreateInstance::<_, IMMDeviceEnumerator>(&MMDeviceEnumerator, None, CLSCTX_ALL) else {
+            return (Vec::new(), None);
+        };
+        let mut names = Vec::new();
+        if let Ok(list) = devices.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE) {
+            for i in 0..list.GetCount().unwrap_or(0) {
+                if let Some(name) = list.Item(i).ok().as_ref().and_then(device_name) {
+                    names.push(name);
+                }
+            }
+        }
+        let default = devices.GetDefaultAudioEndpoint(eRender, eConsole).ok().as_ref().and_then(device_name);
+        (names, default)
     }
 }
 

@@ -29,6 +29,57 @@ component IconButton inherits Rectangle {
     }
 }
 
+// Seek bar: drag (or click) to scrub; the seek is sent on release.
+component Scrubber inherits Rectangle {
+    in property <float> progress;
+    callback seek(float);
+    property <bool> dragging;
+    property <float> drag-value;
+    property <float> shown: root.dragging ? root.drag-value : root.progress;
+    property <bool> active: touch.has-hover || root.dragging;
+    height: 16px;
+    track := Rectangle {
+        y: (parent.height - self.height) / 2;
+        height: root.active ? 6px : 4px;
+        border-radius: self.height / 2;
+        background: #ffffff26;
+        animate height { duration: 120ms; }
+        Rectangle {
+            x: 0;
+            width: parent.width * max(0, min(1, root.shown));
+            height: parent.height;
+            border-radius: parent.border-radius;
+            background: root.active ? Theme.accent : #ffffffd9;
+        }
+    }
+    if root.active: Rectangle {
+        width: 12px;
+        height: 12px;
+        border-radius: 6px;
+        background: white;
+        x: root.width * max(0, min(1, root.shown)) - 6px;
+        y: (root.height - 12px) / 2;
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        pointer-event(ev) => {
+            if ev.kind == PointerEventKind.down && ev.button == PointerEventButton.left {
+                root.dragging = true;
+                root.drag-value = max(0, min(1, self.mouse-x / self.width));
+            }
+            if ev.kind == PointerEventKind.up && root.dragging {
+                root.dragging = false;
+                root.seek(root.drag-value);
+            }
+        }
+        moved => {
+            if root.dragging {
+                root.drag-value = max(0, min(1, self.mouse-x / self.width));
+            }
+        }
+    }
+}
+
 export component IslandWindow inherits Window {
     title: "Familiar Island";
     no-frame: true;
@@ -50,12 +101,25 @@ export component IslandWindow inherits Window {
     in property <length> collapsed-height: 28px;
     in property <length> expanded-width: 400px;
     in property <length> expanded-height: 176px;
+    // Playback timeline.
+    in property <bool> has-timeline;
+    in property <float> progress;
+    in property <string> elapsed-text;
+    in property <string> total-text;
+    // Temporary alert pill (device connected, focus finished...).
+    in property <string> alert-text;
+    in property <string> alert-glyph;
+    // Focus (Pomodoro) timer.
+    in property <bool> focus-active;
+    in property <string> focus-text: "25:00";
 
     callback hover-changed(bool);
     callback play-pause();
     callback next();
     callback previous();
     callback open-source();
+    callback seek(float);
+    callback focus-toggle();
 
     pill := Rectangle {
         width: root.expanded ? root.expanded-width : root.collapsed-width;
@@ -80,9 +144,34 @@ export component IslandWindow inherits Window {
                 root.hover-changed(self.has-hover);
             }
 
+            // Collapsed alert: icon and a short message.
+            HorizontalLayout {
+                opacity: !root.expanded && root.alert-text != "" ? 1 : 0;
+                animate opacity { duration: 160ms; }
+                padding-left: 12px;
+                padding-right: 14px;
+                spacing: 8px;
+                alignment: center;
+                Text {
+                    text: root.alert-glyph;
+                    font-family: Theme.icons;
+                    font-size: 13px;
+                    color: Theme.accent;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: root.alert-text;
+                    color: white;
+                    font-size: 12px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+            }
+
             // Collapsed: artwork chip on the left, live dot bars on the right.
             HorizontalLayout {
-                opacity: root.expanded ? 0 : 1;
+                opacity: root.expanded || root.alert-text != "" ? 0 : 1;
                 animate opacity { duration: 120ms; }
                 padding-left: 5px;
                 padding-right: 12px;
@@ -112,6 +201,14 @@ export component IslandWindow inherits Window {
                         y: (root.collapsed-height - 4px) / 2;
                         background: i == 1 ? Theme.accent : #ffffff59;
                     }
+                }
+                if root.focus-active: Text {
+                    text: root.focus-text;
+                    color: Theme.accent;
+                    font-family: Theme.display;
+                    font-size: 12px;
+                    font-weight: 700;
+                    vertical-alignment: center;
                 }
                 if root.mic || root.cam: Dot {
                     size: 6px;
@@ -151,6 +248,28 @@ export component IslandWindow inherits Window {
                     }
                     Rectangle {
                         horizontal-stretch: 1;
+                    }
+                    // Focus chip: starts / stops a Pomodoro.
+                    Rectangle {
+                        width: focus-label.preferred-width + 16px;
+                        height: 18px;
+                        y: -2px;
+                        border-radius: 9px;
+                        background: root.focus-active ? Theme.accent : (focus-touch.has-hover ? #ffffff26 : #ffffff14);
+                        focus-label := Text {
+                            text: root.focus-active ? "FOCUS " + root.focus-text : "FOCUS";
+                            color: white;
+                            font-size: 9px;
+                            font-weight: 700;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                        focus-touch := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                root.focus-toggle();
+                            }
+                        }
                     }
                     Image {
                         width: 54px;
@@ -207,6 +326,37 @@ export component IslandWindow inherits Window {
                             font-size: 12px;
                             overflow: elide;
                         }
+                    }
+                }
+
+                // Timeline: elapsed, seek bar, length.
+                HorizontalLayout {
+                    spacing: 10px;
+                    height: 16px;
+                    opacity: root.has-timeline ? 1 : 0.35;
+                    Text {
+                        text: root.has-timeline ? root.elapsed-text : "--:--";
+                        color: #ffffff99;
+                        font-size: 10px;
+                        vertical-alignment: center;
+                        width: 34px;
+                    }
+                    Scrubber {
+                        horizontal-stretch: 1;
+                        progress: root.progress;
+                        seek(f) => {
+                            if root.has-timeline {
+                                root.seek(f);
+                            }
+                        }
+                    }
+                    Text {
+                        text: root.has-timeline ? root.total-text : "--:--";
+                        color: #ffffff99;
+                        font-size: 10px;
+                        horizontal-alignment: right;
+                        vertical-alignment: center;
+                        width: 34px;
                     }
                 }
 

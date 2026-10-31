@@ -73,3 +73,16 @@ impl Drop for SingleInstance {
         }
     }
 }
+
+#[link(name = "user32")]
+unsafe extern "system" {
+    fn MessageBeep(utype: u32) -> i32;
+}
+
+/// The system "asterisk" sound (Focus finished and similar cues).
+pub fn chime() {
+    // MB_ICONASTERISK
+    unsafe {
+        MessageBeep(0x40);
+    }
+}

@@ -53,6 +53,10 @@ pub struct TopBarConfig {
 #[serde(default)]
 pub struct IslandConfig {
     pub enabled: bool,
+    /// Length of a Focus (Pomodoro) session.
+    pub focus_minutes: u32,
+    /// Show a pill when audio outputs are connected or removed.
+    pub device_alerts: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -123,7 +127,7 @@ impl Default for TopBarConfig {
 
 impl Default for IslandConfig {
     fn default() -> Self {
-        Self { enabled: true }
+        Self { enabled: true, focus_minutes: 25, device_alerts: true }
     }
 }
 
