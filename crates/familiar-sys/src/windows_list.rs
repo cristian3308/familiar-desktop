@@ -288,3 +288,10 @@ pub fn restored_rect(hwnd: Hwnd) -> Option<crate::window::Rect> {
         })
     }
 }
+
+/// Empties the Recycle Bin. Windows asks the user to confirm first.
+pub fn empty_recycle_bin() {
+    unsafe {
+        let _ = windows::Win32::UI::Shell::SHEmptyRecycleBinW(None, windows::core::PCWSTR::null(), 0);
+    }
+}

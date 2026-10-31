@@ -51,6 +51,41 @@ const BOUNCE_PERIOD: f32 = 0.6;
 /// Hops before giving up on an app that never shows a window.
 const BOUNCE_MAX_HOPS: u32 = 6;
 
+/// What a right-click menu entry does.
+#[derive(Clone, Debug, PartialEq)]
+enum MenuAction {
+    Open(String),
+    CloseAll(Vec<Hwnd>),
+    TogglePin,
+    ShowInExplorer(String),
+    OpenTrash,
+    EmptyTrash,
+    DockSettings,
+}
+
+/// Menu for one dock entry: (label, action), labels in Spanish (i18n keys).
+fn menu_for(e: &Entry) -> Vec<(&'static str, MenuAction)> {
+    match e.special {
+        Special::Trash => {
+            vec![("Abrir la papelera", MenuAction::OpenTrash), ("Vaciar la papelera", MenuAction::EmptyTrash)]
+        }
+        Special::Launcher => vec![("Ajustes del Dock", MenuAction::DockSettings)],
+        Special::App => {
+            let mut m = Vec::new();
+            let open = if e.windows.is_empty() { "Abrir" } else { "Nueva ventana" };
+            m.push((open, MenuAction::Open(e.app_id.clone())));
+            if !e.windows.is_empty() {
+                m.push(("Cerrar todas las ventanas", MenuAction::CloseAll(e.windows.clone())));
+            }
+            m.push((if e.pinned { "Quitar del Dock" } else { "Fijar en el Dock" }, MenuAction::TogglePin));
+            if e.exe_path.contains(":\\") {
+                m.push(("Mostrar en el Explorador", MenuAction::ShowInExplorer(e.exe_path.clone())));
+            }
+            m
+        }
+    }
+}
+
 /// Look of the Files (Explorer) icon.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FilesStyle {
@@ -225,6 +260,10 @@ pub struct Dock {
     preview_hovered: Cell<bool>,
     preview_show: Timer,
     preview_hide: Timer,
+    /// Open right-click menu: the entry it belongs to and its actions.
+    menu: RefCell<Option<(usize, Vec<MenuAction>)>>,
+    menu_hovered: Cell<bool>,
+    menu_hide: Timer,
 }
 
 impl Dock {
@@ -242,6 +281,8 @@ impl Dock {
         ui.on_drag_ended(|| with_app(|a| a.dock.as_ref().map_or((), |d| d.drag_end(a))));
         ui.on_preview_clicked(|i| with_app(|a| a.dock.as_ref().map_or((), |d| d.preview_clicked(i))));
         ui.on_preview_hover(|h| with_app(|a| a.dock.as_ref().map_or((), |d| d.preview_hover(h))));
+        ui.on_menu_clicked(|i| with_app(|a| a.dock.as_ref().map_or((), |d| d.menu_clicked(a, i))));
+        ui.on_menu_hover(|h| with_app(|a| a.dock.as_ref().map_or((), |d| d.menu_hover(h))));
         Ok(Self {
             ui,
             model,
@@ -264,6 +305,9 @@ impl Dock {
             preview_hovered: Cell::new(false),
             preview_show: Timer::default(),
             preview_hide: Timer::default(),
+            menu: RefCell::new(None),
+            menu_hovered: Cell::new(false),
+            menu_hide: Timer::default(),
         })
     }
 
@@ -751,6 +795,7 @@ impl Dock {
         if structure_changed {
             // Indices moved: a list on screen may point at another app now.
             self.close_preview();
+            self.close_menu();
             self.relayout(app);
         } else {
             self.layout_icons(app);
@@ -859,15 +904,110 @@ impl Dock {
         }
     }
 
+    // ----- right-click menu --------------------------------------------
+
+    fn open_menu(&self, index: usize) {
+        let Some(entry) = self.entries.borrow().get(index).cloned() else { return };
+        let items = menu_for(&entry);
+        if items.is_empty() {
+            return;
+        }
+        self.close_preview();
+        let labels: Vec<slint::SharedString> = items.iter().map(|(l, _)| crate::i18n::t(l).into()).collect();
+        self.ui.set_menu_items(Rc::new(VecModel::from(labels)).into());
+        self.ui.set_menu_index(index as i32);
+        *self.menu.borrow_mut() = Some((index, items.into_iter().map(|(_, a)| a).collect()));
+        self.menu_hovered.set(false);
+        // Closes on its own unless the pointer reaches it.
+        self.menu_hide.start(TimerMode::SingleShot, Duration::from_millis(2500), || {
+            with_app(|a| a.dock.as_ref().map_or((), |d| d.maybe_close_menu()))
+        });
+    }
+
+    fn close_menu(&self) {
+        self.menu_hide.stop();
+        self.menu.borrow_mut().take();
+        self.menu_hovered.set(false);
+        self.ui.set_menu_index(-1);
+    }
+
+    fn maybe_close_menu(&self) {
+        if !self.menu_hovered.get() {
+            self.close_menu();
+        }
+    }
+
+    fn menu_hover(&self, hovered: bool) {
+        self.menu_hovered.set(hovered);
+        if hovered {
+            self.menu_hide.stop();
+        } else if self.menu.borrow().is_some() {
+            self.menu_hide.start(TimerMode::SingleShot, PREVIEW_GRACE, || {
+                with_app(|a| a.dock.as_ref().map_or((), |d| d.maybe_close_menu()))
+            });
+        }
+    }
+
+    fn menu_clicked(&self, app: &App, row: i32) {
+        let picked =
+            self.menu.borrow().as_ref().and_then(|(i, actions)| Some((*i, actions.get(row.max(0) as usize)?.clone())));
+        self.close_menu();
+        let Some((index, action)) = picked else { return };
+        match action {
+            MenuAction::Open(target) => app.launch(&target),
+            MenuAction::CloseAll(windows) => windows.into_iter().for_each(windows_list::close),
+            MenuAction::TogglePin => {
+                if let Some(entry) = self.entries.borrow().get(index).cloned() {
+                    self.toggle_pin(app, &entry);
+                }
+            }
+            MenuAction::ShowInExplorer(path) => {
+                let _ = std::process::Command::new("explorer.exe").arg(format!("/select,{path}")).spawn();
+            }
+            MenuAction::OpenTrash => app.launch(TRASH),
+            MenuAction::EmptyTrash => windows_list::empty_recycle_bin(),
+            MenuAction::DockSettings => app.settings.show(app),
+        }
+    }
+
+    fn toggle_pin(&self, app: &App, entry: &Entry) {
+        let store = app.store.borrow();
+        let result = if entry.pinned {
+            store.unpin(&entry.app_id).map(|_| ())
+        } else {
+            store
+                .pin(&NewDockItem {
+                    app_id: &entry.app_id,
+                    display_name: &entry.name,
+                    executable_path: &entry.exe_path,
+                    icon_cache_path: &entry.icon_path.to_string_lossy(),
+                })
+                .map(|_| ())
+        };
+        drop(store);
+        if let Err(e) = result {
+            log::warn!("dock pin toggle failed: {e}");
+        }
+        self.rebuild(app);
+    }
+
     fn on_click(&self, app: &App, x: f32, click: Click) {
         let Some(index) = hit_test(&self.slots.borrow(), x) else { return };
         let Some(entry) = self.entries.borrow().get(index).cloned() else { return };
+        if self.menu.borrow().is_some() {
+            self.close_menu();
+            if !matches!(click, Click::Secondary) {
+                return;
+            }
+        }
         if entry.separator {
             return;
         }
+        if matches!(click, Click::Secondary) {
+            return self.open_menu(index);
+        }
         match (entry.special, click) {
             (Special::Launcher, Click::Primary) => return app.launcher.toggle(app),
-            (Special::Launcher, Click::Secondary) => return app.settings.toggle(app),
             (Special::Trash, Click::Primary) => return app.launch(TRASH),
             (Special::App, _) => {}
             _ => return,
@@ -884,26 +1024,7 @@ impl Dock {
                 }
             }
             Click::Primary | Click::Middle => app.launch(&entry.app_id),
-            Click::Secondary => {
-                let store = app.store.borrow();
-                let result = if entry.pinned {
-                    store.unpin(&entry.app_id).map(|_| ())
-                } else {
-                    store
-                        .pin(&NewDockItem {
-                            app_id: &entry.app_id,
-                            display_name: &entry.name,
-                            executable_path: &entry.exe_path,
-                            icon_cache_path: &entry.icon_path.to_string_lossy(),
-                        })
-                        .map(|_| ())
-                };
-                drop(store);
-                if let Err(e) = result {
-                    log::warn!("dock pin toggle failed: {e}");
-                }
-                self.rebuild(app);
-            }
+            Click::Secondary => {}
         }
     }
 }
@@ -941,5 +1062,29 @@ mod tests {
         assert_eq!(s, FilesStyle::Classic);
         assert_eq!(seen, ["classic", "dot", "mono", "theme", "glass"]);
         assert_eq!(FilesStyle::from_id("nope"), FilesStyle::Classic);
+    }
+
+    #[test]
+    fn menus_offer_what_makes_sense() {
+        use super::{Entry, MenuAction, Special, menu_for};
+        let app = Entry {
+            app_id: "brave".into(),
+            name: "Brave".into(),
+            exe_path: r"C:\Brave\brave.exe".into(),
+            icon_path: Default::default(),
+            pinned: true,
+            separator: false,
+            special: Special::App,
+            windows: Vec::new(),
+        };
+        let labels = |e: &Entry| menu_for(e).into_iter().map(|(l, _)| l).collect::<Vec<_>>();
+        assert_eq!(labels(&app), ["Abrir", "Quitar del Dock", "Mostrar en el Explorador"]);
+        let running = Entry { windows: vec![familiar_sys::Hwnd(1)], pinned: false, ..app.clone() };
+        assert_eq!(
+            labels(&running),
+            ["Nueva ventana", "Cerrar todas las ventanas", "Fijar en el Dock", "Mostrar en el Explorador"]
+        );
+        let trash = Entry { special: Special::Trash, ..app };
+        assert!(menu_for(&trash).iter().any(|(_, a)| *a == MenuAction::EmptyTrash));
     }
 }

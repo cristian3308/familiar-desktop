@@ -257,6 +257,9 @@ export component DockWindow inherits Window {
     in property <int> preview-index: -1;
     in property <[string]> preview-titles;
     in property <int> preview-active: -1;
+    // Right-click menu above an icon (-1 = hidden).
+    in property <int> menu-index: -1;
+    in property <[string]> menu-items;
 
     callback pointer-moved(length);
     callback hover-changed(bool);
@@ -268,6 +271,8 @@ export component DockWindow inherits Window {
     callback drag-ended();
     callback preview-clicked(int);
     callback preview-hover(bool);
+    callback menu-clicked(int);
+    callback menu-hover(bool);
 
     property <length> press-x;
     property <bool> dragging;
@@ -522,6 +527,54 @@ export component DockWindow inherits Window {
                 }
                 clicked => {
                     root.preview-clicked(w);
+                }
+            }
+        }
+    }
+
+    // Right-click menu.
+    if root.menu-index >= 0 && root.menu-index < root.icons.length: Rectangle {
+        property <DockIcon> item: root.icons[root.menu-index];
+        property <length> row-h: 30px;
+        width: 240px;
+        height: root.menu-items.length * self.row-h + 12px;
+        x: max(2px, min(root.width - self.width - 2px, item.x + item.size / 2 - self.width / 2));
+        y: root.icons-bottom - item.size - self.height - 12px;
+        border-radius: 14px;
+        background: Theme.island;
+        border-width: 1px;
+        border-color: #ffffff26;
+        menu-touch := TouchArea {
+            changed has-hover => {
+                root.menu-hover(self.has-hover);
+            }
+        }
+        for label[m] in root.menu-items: Rectangle {
+            x: 6px;
+            y: 6px + m * parent.row-h;
+            width: parent.width - 12px;
+            height: parent.row-h - 2px;
+            border-radius: 9px;
+            background: item-touch.has-hover ? Theme.accent : transparent;
+            Text {
+                x: 12px;
+                width: parent.width - 20px;
+                height: parent.height;
+                text: label;
+                color: item-touch.has-hover ? Theme.on-accent : white;
+                font-size: 12px;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+            item-touch := TouchArea {
+                mouse-cursor: pointer;
+                changed has-hover => {
+                    if self.has-hover {
+                        root.menu-hover(true);
+                    }
+                }
+                clicked => {
+                    root.menu-clicked(m);
                 }
             }
         }
